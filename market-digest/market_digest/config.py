@@ -20,12 +20,13 @@ def _load_dotenv(path: Path) -> None:
 
 @dataclass
 class Source:
-    kind: str          # youtube | website | x
+    kind: str          # youtube | website | x | discord
     name: str
     category: str = "both"
     channel_id: str = ""
     url: str = ""
     handle: str = ""
+    author_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -56,7 +57,7 @@ def load_config(path: str | Path | None = None) -> Config:
     path = Path(path or os.environ.get("MARKET_DIGEST_CONFIG", ROOT / "config.yaml"))
     raw = yaml.safe_load(path.read_text()) or {}
     sources = []
-    for kind in ("youtube", "websites", "x"):
+    for kind in ("youtube", "websites", "x", "discord"):
         for entry in raw.get(kind) or []:
             sources.append(Source(kind=kind.rstrip("s") if kind == "websites" else kind, **entry))
     return Config(raw=raw, sources=sources)

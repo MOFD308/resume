@@ -52,6 +52,15 @@ x:
     handle: example_trader
     category: levels
 
+discord:
+  # 需要一个你自己的 Discord Bot（token 放 .env 的 DISCORD_BOT_TOKEN），Bot 必须在该服务器里。
+  # 如果你不是群管理员：把博主的“公告频道”Follow 到你自己的服务器，Bot 读你自己服务器里的那个频道。
+  # channel_id：Discord 设置里打开“开发者模式”，右键频道 → 复制频道 ID
+  - name: 示例Discord博主
+    channel_id: "123456789012345678"
+    author_ids: []              # 可选：只收这些用户 ID 发的消息，留空则收频道里所有消息
+    category: levels
+
 email_inbox:                    # 仅在不用 X 付费 API 时需要：读取 X 通知邮件的邮箱（IMAP）
   host: imap.gmail.com
   folder: INBOX

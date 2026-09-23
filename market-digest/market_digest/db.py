@@ -7,7 +7,7 @@ from pathlib import Path
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS items (
     id            TEXT PRIMARY KEY,      -- "<kind>:<external id>"
-    kind          TEXT NOT NULL,         -- youtube | website | x
+    kind          TEXT NOT NULL,         -- youtube | website | x | discord
     author        TEXT NOT NULL,
     category      TEXT NOT NULL,
     title         TEXT,
