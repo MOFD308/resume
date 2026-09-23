@@ -1,0 +1,58 @@
+# 复制为 config.yaml 后修改。密钥类信息放在 .env（见 .env.example），不要写在这里。
+
+timezone: America/New_York     # 所有定时任务按美东时间
+database: data/market_digest.db
+dashboard_url: http://localhost:8000   # 邮件里的 Dashboard 链接
+
+llm:
+  model: claude-opus-5          # 提取点位 / 写总结用的模型
+  effort: medium                # low / medium / high，越高越准也越贵
+
+poll_minutes: 5                 # 多久检查一次所有来源的更新
+
+# 点位多久后从 Dashboard 上过期（按博主给的时间框架）
+level_ttl_days:
+  intraday: 1
+  swing: 10
+  long_term: 60
+  unspecified: 5
+
+cluster_tolerance_pct: 0.6      # 不同博主给的点位相差多少 % 以内视为同一个点位
+
+schedule:                       # 美东时间，周一到周五
+  premarket: "08:45"
+  midday: "12:30"
+  close: "16:30"
+  weekly_macro: "sun 18:00"     # 宏观周报
+macro_alert_immediately: true   # 宏观视频/文章一更新就单独发一封邮件
+
+# ------------------------------------------------------------------
+# 信息源。category:
+#   levels = 主要给点位   macro = 主要讲宏观   both = 两者都有
+# ------------------------------------------------------------------
+youtube:
+  # channel_id 可以用 `python -m market_digest resolve-youtube @频道handle` 查
+  - name: 示例博主A
+    channel_id: UCxxxxxxxxxxxxxxxxxxxxxx
+    category: levels
+  - name: 示例宏观频道
+    channel_id: UCyyyyyyyyyyyyyyyyyyyyyy
+    category: macro
+
+websites:
+  # 博主个人网站上的点位页面。程序定期抓取，内容有变化就重新提取点位。
+  - name: 示例博主网站
+    url: https://example.com/levels
+    category: levels
+
+x:
+  # 默认：在 X 上给这些账号开启“推文通知 → 邮件”，程序从邮箱读取。
+  # 如果在 .env 里配置了 X_BEARER_TOKEN，则改用官方 API 直接拉取推文。
+  - name: 示例推特博主
+    handle: example_trader
+    category: levels
+
+email_inbox:                    # 仅在不用 X 付费 API 时需要：读取 X 通知邮件的邮箱（IMAP）
+  host: imap.gmail.com
+  folder: INBOX
+  x_senders: ["notify@x.com", "info@x.com", "notify@twitter.com"]
