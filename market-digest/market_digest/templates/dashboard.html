@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>点位看板</title>
+<style>
+:root {
+  --bg: #f4f4f2; --surface: #ffffff; --surface-2: #f8f8f6; --line: #e6e5e0;
+  --text: #0b0b0b; --text-2: #52514e; --muted: #8a8984;
+  --support: #2a78d6; --resist: #e34948; --neutral: #6b6a66; --accent: #b36b00;
+  --support-bg: #e9f1fb; --resist-bg: #fcecec; --new: #fff4d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121211; --surface: #1a1a19; --surface-2: #222220; --line: #30302d;
+    --text: #ffffff; --text-2: #c3c2b7; --muted: #8f8e86;
+    --support: #3987e5; --resist: #e66767; --neutral: #a09f98; --accent: #e0a040;
+    --support-bg: #172536; --resist-bg: #361c1c; --new: #3a3218;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121211; --surface: #1a1a19; --surface-2: #222220; --line: #30302d;
+  --text: #ffffff; --text-2: #c3c2b7; --muted: #8f8e86;
+  --support: #3987e5; --resist: #e66767; --neutral: #a09f98; --accent: #e0a040;
+  --support-bg: #172536; --resist-bg: #361c1c; --new: #3a3218;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 14px/1.5 -apple-system, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
+  padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+header h1 { font-size: 18px; margin: 0 12px 0 0; }
+.status { color: var(--muted); font-size: 12px; }
+input[type=search], select { background: var(--surface); color: var(--text); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 10px; font: inherit; }
+input[type=search] { width: 180px; }
+label.chk { color: var(--text-2); display: flex; gap: 4px; align-items: center; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; padding: 16px; max-width: 1400px; margin: 0 auto; }
+@media (max-width: 960px) { main { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--surface); border-radius: 12px; padding: 12px 14px; margin-bottom: 16px; }
+.panel h2 { font-size: 15px; margin: 0 0 8px; }
+table { width: 100%; border-collapse: collapse; }
+.call { overflow-wrap: anywhere; }
+th { white-space: nowrap; text-align: left; color: var(--muted); font-weight: 500; font-size: 12px; padding: 6px 8px; }
+td { padding: 8px; border-top: 1px solid var(--line); vertical-align: top; }
+tr.row { cursor: pointer; }
+tr.row:hover td { background: var(--surface-2); }
+tr.row.fresh td { background: var(--new); }
+.tk { font-weight: 700; font-size: 15px; }
+.num { font-variant-numeric: tabular-nums; }
+.sup { color: var(--support); } .res { color: var(--resist); }
+.pill { display: inline-block; border-radius: 999px; padding: 0 8px; font-size: 12px; background: var(--surface-2); color: var(--text-2); margin: 1px 2px 1px 0; }
+.pill.sup { background: var(--support-bg); color: var(--support); }
+.pill.res { background: var(--resist-bg); color: var(--resist); }
+.cons { color: var(--accent); font-weight: 700; }
+.hide-sm { } @media (max-width: 640px) { .hide-sm { display: none; } }
+.detail td { background: var(--surface-2); padding: 10px 12px; }
+.ladder { display: flex; flex-direction: column; gap: 2px; }
+.rung { display: grid; grid-template-columns: 96px 70px 1fr; gap: 10px; align-items: start; padding: 6px 8px; border-radius: 8px; background: var(--surface); }
+.rung .bar { height: 4px; border-radius: 4px; margin-top: 6px; }
+.rung.above { border-left: 3px solid var(--resist); } .rung.below { border-left: 3px solid var(--support); }
+.rung.unknown { border-left: 3px solid var(--neutral); }
+.now { display: flex; align-items: center; gap: 8px; color: var(--text); font-weight: 600; padding: 4px 8px; }
+.now::before, .now::after { content: ""; flex: 1; border-top: 2px dashed var(--muted); }
+.call { color: var(--text-2); margin-bottom: 4px; }
+.call b { color: var(--text); }
+.call q { color: var(--muted); font-size: 12px; }
+.call a { color: var(--muted); font-size: 12px; }
+.feed-item { border-top: 1px solid var(--line); padding: 8px 0; }
+.feed-item:first-child { border-top: 0; }
+.meta { color: var(--muted); font-size: 12px; }
+a { color: var(--support); }
+.risk { font-weight: 600; } .risk.high, .risk.elevated { color: var(--resist); }
+.empty { color: var(--muted); padding: 24px; text-align: center; }
+details summary { cursor: pointer; }
+.macro-text { white-space: pre-line; color: var(--text-2); margin-top: 4px; }
+@media (max-width: 640px) {
+  header { padding: 10px 16px; }
+  input[type=search] { flex: 1; min-width: 0; width: auto; }
+  main { padding: 12px 16px; } .panel { padding: 10px; }
+  td, th { padding: 6px 4px; }
+  .rung { grid-template-columns: 80px 1fr; } .rung > div:last-child { grid-column: 1 / -1; }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>点位看板</h1>
+  <input type="search" id="q" placeholder="搜索代码，如 NVDA" aria-label="搜索代码">
+  <select id="src" aria-label="按博主筛选"><option value="">全部博主</option></select>
+  <label class="chk"><input type="checkbox" id="cons"> 只看 ≥2 位博主共识</label>
+  <span class="status" id="status">加载中…</span>
+</header>
+<main>
+  <section>
+    <div class="panel">
+      <table>
+        <thead><tr>
+          <th>代码</th><th class="num">现价</th><th>下方最近支撑</th><th>上方最近阻力</th>
+          <th class="hide-sm">博主</th><th class="hide-sm">倾向</th><th class="hide-sm">更新</th>
+        </tr></thead>
+        <tbody id="board"></tbody>
+      </table>
+      <div class="empty" id="empty" hidden>还没有点位。博主更新后会自动出现在这里。</div>
+    </div>
+  </section>
+  <aside>
+    <div class="panel"><h2>宏观观点（近 7 天）</h2><div id="macro"></div></div>
+    <div class="panel"><h2>最新动态</h2><div id="feed"></div></div>
+    <div class="panel"><h2>信息源（近 7 天）</h2><div id="sources"></div></div>
+  </aside>
+</main>
+<script>
+const LT = {support:"支撑", resistance:"阻力", target:"目标", stop:"止损", entry:"入场", pivot:"多空分界", other:"其他"};
+const KIND = {youtube:"YouTube", x:"X", website:"网站", discord:"Discord"};
+const BIAS = {bullish:"偏多", bearish:"偏空", neutral:"中性"};
+const RISK = {low:"低", moderate:"中", elevated:"偏高", high:"高"};
+const open = new Set(decodeURIComponent(location.hash.slice(1)).split(",").filter(Boolean).map(s => s.toUpperCase()));
+let rows = [], seenLatest = {};
+try { seenLatest = JSON.parse(localStorage.getItem("seenLatest") || "{}"); } catch (e) {}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => n == null ? "—" : Number(n).toLocaleString("en-US", {maximumFractionDigits: 2});
+const ago = iso => { const m = (Date.now() - new Date(iso)) / 60000;
+  return m < 60 ? `${Math.max(1, Math.round(m))} 分钟前` : m < 1440 ? `${Math.round(m/60)} 小时前` : `${Math.round(m/1440)} 天前`; };
+const pct = d => d == null ? "" : `<span class="meta">${d > 0 ? "+" : ""}${d.toFixed(2)}%</span>`;
+
+function levelCell(c, cls) {
+  if (!c) return `<span class="meta">—</span>`;
+  const cons = c.consensus > 1 ? ` <span class="cons" title="${c.consensus} 位博主">×${c.consensus}</span>` : "";
+  return `<span class="num ${cls}"><b>${fmt(c.price)}</b></span>${cons} ${pct(c.distance_pct)}`;
+}
+
+function ladder(r) {
+  const cl = [...r.clusters].sort((a, b) => b.price - a.price);
+  let html = "", nowShown = r.price == null;
+  for (const c of cl) {
+    if (!nowShown && c.price < r.price) { html += `<div class="now">现价 ${fmt(r.price)}</div>`; nowShown = true; }
+    const side = c.side || "unknown";
+    const calls = c.calls.map(l => `<div class="call"><b>${esc(l.author)}</b>
+      <span class="pill">${LT[l.level_type] || l.level_type}</span>
+      ${l.price_high ? `<span class="num">${fmt(l.price)}–${fmt(l.price_high)}</span>` : ""}
+      ${esc(l.note)} <span class="meta">· ${KIND[l.kind] || l.kind} · ${ago(l.published_at)}</span>
+      ${l.quote ? `<br><q>${esc(l.quote)}</q>` : ""}
+      ${l.item_url ? ` <a href="${esc(l.item_url)}" target="_blank" rel="noopener">原文</a>` : ""}</div>`).join("");
+    html += `<div class="rung ${side}">
+      <div class="num"><b class="${side === "above" ? "res" : side === "below" ? "sup" : ""}">${fmt(c.price)}</b>
+        ${c.high > c.low ? `<br><span class="meta">${fmt(c.low)}–${fmt(c.high)}</span>` : ""}
+        <br>${pct(c.distance_pct)}</div>
+      <div>${c.types.map(t => `<span class="pill ${side === "above" ? "res" : side === "below" ? "sup" : ""}">${LT[t] || t}</span>`).join("")}
+        ${c.consensus > 1 ? `<div class="cons">${c.consensus} 位共识</div>` : ""}</div>
+      <div>${calls}</div></div>`;
+  }
+  if (!nowShown) html += `<div class="now">现价 ${fmt(r.price)}</div>`;
+  return `<div class="ladder">${html}</div>`;
+}
+
+function render() {
+  const q = document.getElementById("q").value.trim().toUpperCase();
+  const src = document.getElementById("src").value;
+  const cons = document.getElementById("cons").checked;
+  const list = rows.filter(r => (!q || r.ticker.includes(q)) && (!src || r.authors.includes(src)) && (!cons || r.max_consensus >= 2));
+  document.getElementById("empty").hidden = list.length > 0;
+  document.getElementById("board").innerHTML = list.map(r => {
+    const fresh = seenLatest[r.ticker] && seenLatest[r.ticker] < r.latest;
+    return `<tr class="row${fresh ? " fresh" : ""}" data-t="${esc(r.ticker)}">
+      <td><span class="tk">${esc(r.ticker)}</span>${fresh ? ' <span class="pill">新</span>' : ""}</td>
+      <td class="num">${fmt(r.price)}</td>
+      <td>${levelCell(r.nearest_below, "sup")}</td>
+      <td>${levelCell(r.nearest_above, "res")}</td>
+      <td class="hide-sm">${r.authors.length} <span class="meta">${esc(r.authors.slice(0, 3).join("、"))}</span></td>
+      <td class="hide-sm">${BIAS[r.bias]}</td>
+      <td class="hide-sm meta">${ago(r.latest)}</td></tr>` +
+      (open.has(r.ticker) ? `<tr class="detail"><td colspan="7">${ladder(r)}</td></tr>` : "");
+  }).join("");
+}
+
+document.getElementById("board").addEventListener("click", e => {
+  if (e.target.closest("a")) return;
+  const tr = e.target.closest("tr.row"); if (!tr) return;
+  const t = tr.dataset.t;
+  open.has(t) ? open.delete(t) : open.add(t);
+  history.replaceState(null, "", open.size ? "#" + [...open].join(",") : location.pathname);
+  const r = rows.find(x => x.ticker === t);
+  if (r) { seenLatest[t] = r.latest; try { localStorage.setItem("seenLatest", JSON.stringify(seenLatest)); } catch (e) {} }
+  render();
+});
+["q", "src", "cons"].forEach(id => document.getElementById(id).addEventListener("input", render));
+
+async function j(url) { const r = await fetch(url); if (!r.ok) throw new Error(r.status); return r.json(); }
+
+async function refresh() {
+  try {
+    const [board, feed, macro, sources] = await Promise.all([j("/api/board"), j("/api/feed"), j("/api/macro"), j("/api/sources")]);
+    rows = board.rows;
+    for (const r of rows) if (!(r.ticker in seenLatest)) seenLatest[r.ticker] = r.latest;
+    render();
+    document.getElementById("feed").innerHTML = feed.map(it => `<div class="feed-item">
+      <div><b>${esc(it.author)}</b> <span class="meta">${KIND[it.kind] || it.kind} · ${ago(it.published_at)}
+        ${it.status === "waiting" ? " · 等待字幕" : it.levels ? ` · ${it.levels} 个点位` : ""}${it.is_macro ? " · 宏观" : ""}</span></div>
+      ${it.url ? `<a href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.title || "原文")}</a>` : esc(it.title || "")}
+      ${it.summary ? `<div class="meta">${esc(it.summary)}</div>` : ""}</div>`).join("") || '<div class="meta">暂无</div>';
+    document.getElementById("macro").innerHTML = macro.map(m => `<div class="feed-item"><details>
+      <summary><b>${esc(m.author)}</b> ${m.risk_level ? `<span class="risk ${m.risk_level}">风险${RISK[m.risk_level]}</span>` : ""}
+        <span class="meta">${ago(m.published_at)}</span><br>${esc(m.title || "")}</summary>
+      <div class="macro-text">${esc(m.macro_summary)}</div>
+      ${m.url ? `<a href="${esc(m.url)}" target="_blank" rel="noopener">原文 / 视频</a>` : ""}</details></div>`).join("") || '<div class="meta">暂无</div>';
+    document.getElementById("sources").innerHTML = `<table><tr><th>博主</th><th>来源</th><th>内容</th><th>点位</th><th class="hide-sm">常提</th></tr>` +
+      sources.map(s => `<tr><td>${esc(s.name)}</td><td class="meta">${KIND[s.kind] || s.kind}</td><td class="num">${s.n ?? 0}</td>
+        <td class="num">${s.levels ?? 0}</td><td class="meta hide-sm">${esc((s.top_tickers || []).join(" "))}</td></tr>`).join("") + "</table>";
+    const sel = document.getElementById("src"), cur = sel.value;
+    const names = [...new Set(sources.map(s => s.name))];
+    sel.innerHTML = `<option value="">全部博主</option>` + names.map(n => `<option${n === cur ? " selected" : ""}>${esc(n)}</option>`).join("");
+    document.getElementById("status").textContent = `已更新 ${new Date().toLocaleTimeString("zh-CN")} · 每 30 秒自动刷新`;
+  } catch (e) {
+    document.getElementById("status").textContent = `刷新失败（${e.message}），30 秒后重试`;
+  }
+}
+refresh();
+setInterval(refresh, 30000);
+</script>
+</body>
+</html>

@@ -13,9 +13,10 @@ CREATE TABLE IF NOT EXISTS items (
     title         TEXT,
     url           TEXT,
     content       TEXT,
+    images        TEXT,                  -- JSON list of image URLs (Discord screenshots)
     published_at  TEXT NOT NULL,
     fetched_at    TEXT NOT NULL,
-    status        TEXT NOT NULL DEFAULT 'pending',  -- pending | done | error | skipped
+    status        TEXT NOT NULL DEFAULT 'pending',  -- waiting | pending | done | error | skipped
     error         TEXT,
     is_macro      INTEGER DEFAULT 0,
     summary       TEXT,
@@ -72,13 +73,13 @@ class DB:
     def has_item(self, item_id: str) -> bool:
         return bool(self.query("SELECT 1 FROM items WHERE id=?", (item_id,)))
 
-    def add_item(self, *, id, kind, author, category, title, url, content, published_at) -> bool:
+    def add_item(self, *, id, kind, author, category, title, url, content, published_at, images=None) -> bool:
         """Insert a new item; returns False if it was already stored."""
         with self._lock, self.conn:
             cur = self.conn.execute(
-                "INSERT OR IGNORE INTO items (id, kind, author, category, title, url, content,"
-                " published_at, fetched_at) VALUES (?,?,?,?,?,?,?,?,?)",
-                (id, kind, author, category, title, url, content, published_at, utcnow()),
+                "INSERT OR IGNORE INTO items (id, kind, author, category, title, url, content, images,"
+                " published_at, fetched_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+                (id, kind, author, category, title, url, content, images, published_at, utcnow()),
             )
             return cur.rowcount == 1
 

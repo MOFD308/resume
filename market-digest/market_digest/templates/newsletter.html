@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>{{ title }}</title></head>
+<body style="margin:0;padding:0;background:#f4f4f2;font-family:-apple-system,'PingFang SC','Microsoft YaHei',Helvetica,Arial,sans-serif;color:#1b1b1a;">
+<div style="max-width:720px;margin:0 auto;padding:20px 16px;">
+
+  <div style="font-size:13px;color:#6b6a66;">{{ date }} · {{ title }}</div>
+  <h1 style="font-size:22px;margin:6px 0 16px;">{{ brief.headline if brief else title }}</h1>
+  {% if dashboard_url %}<p style="margin:0 0 16px;"><a href="{{ dashboard_url }}" style="color:#1f5fbf;">打开实时点位 Dashboard →</a></p>{% endif %}
+
+  {% if brief %}
+  <div style="background:#fff;border-radius:10px;padding:16px 18px;margin-bottom:16px;">
+    <div style="white-space:pre-line;line-height:1.65;font-size:15px;">{{ brief.overview }}</div>
+    {% if brief.focus %}
+    <h3 style="font-size:15px;margin:14px 0 6px;">重点关注</h3>
+    <ul style="margin:0;padding-left:20px;line-height:1.6;">{% for f in brief.focus %}<li>{{ f }}</li>{% endfor %}</ul>
+    {% endif %}
+    {% if brief.disagreements %}
+    <h3 style="font-size:15px;margin:14px 0 6px;">分歧</h3>
+    <ul style="margin:0;padding-left:20px;line-height:1.6;">{% for f in brief.disagreements %}<li>{{ f }}</li>{% endfor %}</ul>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% if kind != 'weekly' and near %}
+  <h2 style="font-size:17px;margin:20px 0 8px;">接近现价的点位（±1%）</h2>
+  <table cellpadding="6" cellspacing="0" style="width:100%;background:#fff;border-radius:10px;border-collapse:collapse;font-size:14px;">
+    <tr style="color:#6b6a66;text-align:left;"><th>代码</th><th>现价</th><th>点位</th><th>距离</th><th>类型</th><th>来源</th></tr>
+    {% for c in near %}
+    <tr style="border-top:1px solid #ecebe7;">
+      <td><b>{{ c.ticker }}</b></td><td>{{ '%.2f'|format(c.last_price) }}</td><td><b>{{ c.price|px }}</b></td>
+      <td style="color:{{ '#1f5fbf' if c.distance_pct < 0 else '#b3261e' }};">{{ '%+.2f'|format(c.distance_pct) }}%</td>
+      <td>{{ c.types|map('ltype')|join('/') }}</td><td>{{ c.authors|join('、') }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  {% if kind != 'weekly' and board %}
+  <h2 style="font-size:17px;margin:20px 0 8px;">点位总表（按提到的博主数排序）</h2>
+  {% for row in board %}
+  <div style="background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
+    <div style="font-size:15px;"><b>{% if dashboard_url %}<a href="{{ dashboard_url }}#{{ row.ticker }}" style="color:inherit;">{{ row.ticker }}</a>{% else %}{{ row.ticker }}{% endif %}</b>
+      {% if row.price %}<span style="color:#6b6a66;"> 现价 {{ '%.2f'|format(row.price) }}</span>{% endif %}
+      <span style="color:#6b6a66;"> · {{ row.authors|length }} 位博主 · 偏{{ {'bullish':'多','bearish':'空'}.get(row.bias, '中性') }}</span>
+    </div>
+    <table cellpadding="4" cellspacing="0" style="width:100%;font-size:13px;margin-top:6px;border-collapse:collapse;">
+      {% for c in row.clusters|reverse %}
+      <tr style="border-top:1px solid #f0efeb;">
+        <td style="width:90px;"><b>{{ c.price|px }}</b>{% if c.high > c.low %}<br><span style="color:#8a8984;">{{ c.low|px }}–{{ c.high|px }}</span>{% endif %}</td>
+        <td style="width:110px;">{{ c.types|map('ltype')|join('/') }}{% if c.consensus > 1 %} <b style="color:#b36b00;">×{{ c.consensus }}</b>{% endif %}</td>
+        <td>{% for l in c.calls %}<div><b>{{ l.author }}</b>：{{ l.note }}</div>{% endfor %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if macro %}
+  <h2 style="font-size:17px;margin:20px 0 8px;">宏观观点</h2>
+  {% for m in macro %}
+  <div style="background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
+    <div style="font-size:14px;"><b>{{ m.author }}</b> · <a href="{{ m.url }}" style="color:#1f5fbf;">{{ m.title or '' }}</a>
+      <span style="color:#6b6a66;"> · {{ local(m.published_at) }}{% if m.risk_level %} · 风险{{ m.risk_level|risk }}{% endif %}</span></div>
+    <div style="white-space:pre-line;line-height:1.6;font-size:14px;margin-top:6px;">{{ m.macro_summary }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <p style="font-size:12px;color:#8a8984;margin-top:24px;">以上内容由程序汇总自你关注的博主观点，不构成投资建议。点位由 AI 从视频字幕 / 帖子中提取，可能有误，请以原文为准。</p>
+</div>
+</body></html>

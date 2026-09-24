@@ -27,6 +27,8 @@ class Source:
     url: str = ""
     handle: str = ""
     author_ids: list[str] = field(default_factory=list)
+    match: list[str] = field(default_factory=list)   # discord: keywords that identify its notifications
+    cookie_env: str = ""                             # website: env var holding a login cookie
 
 
 @dataclass

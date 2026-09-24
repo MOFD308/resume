@@ -1,0 +1,4 @@
+# 把 digest.example.com 换成你的域名（域名 A 记录指向服务器 IP）
+digest.example.com {
+    reverse_proxy 127.0.0.1:8000
+}

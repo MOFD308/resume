@@ -1,0 +1,23 @@
+services:
+  market-digest:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MARKET_DIGEST_CONFIG: /app/config.yaml
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+      - ./data:/app/data
+    ports:
+      - "127.0.0.1:8000:8000"   # 只对本机开放，由 caddy 提供 HTTPS 对外访问
+
+  caddy:                       # 自动申请 HTTPS 证书；把 Caddyfile 里的域名换成你自己的
+    image: caddy:2
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  caddy_data:

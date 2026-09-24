@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>宏观更新</title></head>
+<body style="margin:0;padding:0;background:#f4f4f2;font-family:-apple-system,'PingFang SC','Microsoft YaHei',Helvetica,Arial,sans-serif;color:#1b1b1a;">
+<div style="max-width:720px;margin:0 auto;padding:20px 16px;">
+  <div style="font-size:13px;color:#6b6a66;">宏观更新 · {{ item.kind|kind }} · {{ local(item.published_at) }}</div>
+  <h1 style="font-size:21px;margin:6px 0 4px;">{{ item.author }}：{{ item.title or '' }}</h1>
+  {% if item.url %}<p style="margin:0 0 14px;"><a href="{{ item.url }}" style="color:#1f5fbf;">查看原文 / 视频 →</a></p>{% endif %}
+
+  <div style="background:#fff;border-radius:10px;padding:16px 18px;margin-bottom:14px;">
+    {% if item.risk_level %}<div style="margin-bottom:8px;">整体风险判断：<b>{{ item.risk_level|risk }}</b></div>{% endif %}
+    <div style="white-space:pre-line;line-height:1.65;font-size:15px;">{{ item.macro_summary or item.summary }}</div>
+  </div>
+
+  {% set themes = item.macro_themes|fromjson %}
+  {% if themes %}
+  <h2 style="font-size:17px;margin:18px 0 8px;">分主题</h2>
+  {% for t in themes %}
+  <div style="background:#fff;border-radius:10px;padding:10px 16px;margin-bottom:8px;font-size:14px;line-height:1.6;">
+    <b>{{ t.topic }}</b>：{{ t.view }}<br><span style="color:#52514e;">市场影响：{{ t.market_impact }}</span>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {% if levels %}
+  <h2 style="font-size:17px;margin:18px 0 8px;">本期提到的点位</h2>
+  <table cellpadding="6" cellspacing="0" style="width:100%;background:#fff;border-radius:10px;border-collapse:collapse;font-size:14px;">
+    {% for l in levels %}
+    <tr style="border-top:1px solid #ecebe7;"><td><b>{{ l.ticker }}</b></td><td><b>{{ l.price|px }}</b>{% if l.price_high %}–{{ l.price_high|px }}{% endif %}</td><td>{{ l.level_type|ltype }}</td><td>{{ l.note }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+  {% if dashboard_url %}<p><a href="{{ dashboard_url }}" style="color:#1f5fbf;">打开实时点位 Dashboard →</a></p>{% endif %}
+  <p style="font-size:12px;color:#8a8984;margin-top:24px;">AI 根据字幕 / 原文自动总结，可能有误，请以原文为准。不构成投资建议。</p>
+</div>
+</body></html>
