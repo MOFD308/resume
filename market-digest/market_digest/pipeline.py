@@ -1,12 +1,13 @@
 """Poll every source, then run Claude over whatever is new."""
 import logging
+import os
 import threading
 
 from . import newsletter
 from .config import Config
 from .db import DB
 from .llm import LLM
-from .sources import website, x, youtube
+from .sources import transcribe, website, x, youtube
 
 log = logging.getLogger(__name__)
 
@@ -15,7 +16,8 @@ _process_lock = threading.Lock()
 
 def poll_sources(cfg: Config, db: DB) -> None:
     for name, fn in (
-        ("youtube", lambda: youtube.poll(db, cfg.by_kind("youtube"))),
+        ("youtube", lambda: youtube.poll(db, cfg.by_kind("youtube"),
+                                         transcribe=_transcribe_cfg(cfg).get("enabled", True))),
         ("website", lambda: website.poll(db, cfg.by_kind("website"))),
         ("x", lambda: x.poll(db, cfg.by_kind("x"), cfg.get("email_inbox"))),
     ):
@@ -25,6 +27,25 @@ def poll_sources(cfg: Config, db: DB) -> None:
                 log.info("%s: %d new item(s)", name, n)
         except Exception:
             log.exception("polling %s failed", name)
+
+
+def _transcribe_cfg(cfg: Config) -> dict:
+    return cfg.get("youtube_transcribe") or {}
+
+
+def transcribe_videos(cfg: Config, db: DB, llm: LLM) -> None:
+    """Background job: speech-to-text for videos without subtitles, then extract."""
+    tc = _transcribe_cfg(cfg)
+    if not tc.get("enabled", True):
+        return
+    try:
+        n = transcribe.transcribe_pending(db, tc.get("model", "small"), tc.get("language"),
+                                          os.environ.get("YOUTUBE_PROXY"))
+    except Exception:
+        log.exception("transcription job failed")
+        return
+    if n:
+        process_pending(cfg, db, llm)
 
 
 def process_pending(cfg: Config, db: DB, llm: LLM) -> int:

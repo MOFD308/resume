@@ -31,6 +31,11 @@ macro_alert_immediately: false  # true = 每条宏观视频/帖子一出来就�
 # 信息源。category:
 #   levels = 主要给点位   macro = 主要讲宏观   both = 两者都有
 # ------------------------------------------------------------------
+youtube_transcribe:             # 视频没有字幕时：下载音频，用 Whisper 在本机做语音识别（免费）
+  enabled: true
+  model: small                  # tiny / base / small / medium：越大越准越慢。small 转 30 分钟视频约 5–15 分钟（CPU）
+  language: zh                  # 频道语言；留空自动识别
+
 youtube:
   # channel_id 可以用 `python -m market_digest resolve-youtube @频道handle` 查
   - name: 示例博主A

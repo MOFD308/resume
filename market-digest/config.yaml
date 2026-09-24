@@ -27,6 +27,11 @@ schedule:                       # 美东时间。只写时间 = 周一到周五�
   weekly_macro: "sun 18:00"
 macro_alert_immediately: false
 
+youtube_transcribe:             # 视频没有字幕时：下载音频，用 Whisper 在本机做语音识别（免费）
+  enabled: true
+  model: small                  # tiny / base / small / medium：越大越准越慢。small 转 30 分钟视频约 5–15 分钟（CPU）
+  language: zh                  # 频道语言；留空自动识别
+
 youtube:
   - name: Shanghao Jin
     channel_id: UCTAJ0JnR9oYvILu-mtNcufQ    # @shanghaojin

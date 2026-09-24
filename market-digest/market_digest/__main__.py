@@ -40,6 +40,8 @@ def run(cfg, db, llm, host: str, port: int) -> None:
     sched.add_job(pipeline.run_once, "interval", minutes=cfg.get("poll_minutes", 5),
                   args=(cfg, db, llm), id="poll", max_instances=1, coalesce=True,
                   next_run_time=datetime.now(sched.timezone))
+    sched.add_job(pipeline.transcribe_videos, "interval", minutes=3, args=(cfg, db, llm),
+                  id="transcribe", max_instances=1, coalesce=True)
     for kind in ("premarket", "midday", "close", "macro_daily", "weekly"):
         spec = cfg.get("schedule", {}).get("weekly_macro" if kind == "weekly" else kind)
         if spec:

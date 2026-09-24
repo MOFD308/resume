@@ -1,7 +1,9 @@
 """New videos come from each channel's public RSS feed; subtitles via youtube-transcript-api.
 
 Auto-generated subtitles usually appear 10-60 minutes after upload (longer for live streams), so a
-video without subtitles is stored as 'waiting' and retried on every poll for up to WAIT_HOURS.
+video without subtitles is stored as 'waiting' and retried on every poll. If the channel has
+subtitles turned off, or none appear within SUBTITLE_WAIT, the video is queued as 'transcribe':
+its audio is downloaded and transcribed locally with Whisper (see transcribe.py).
 """
 import logging
 import os
@@ -22,7 +24,8 @@ log = logging.getLogger(__name__)
 
 FEED_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
 LANGUAGES = ("en", "en-US", "zh-Hans", "zh-Hant", "zh", "zh-CN", "zh-TW")
-WAIT_HOURS = 12
+SUBTITLE_WAIT = timedelta(minutes=90)
+WAIT_HOURS = 12  # give up if neither subtitles nor transcription produce text
 
 
 def resolve_channel_id(handle_or_url: str) -> str:
@@ -49,6 +52,10 @@ def _proxy_config():
     return None
 
 
+class SubtitlesDisabled(Exception):
+    """The uploader turned subtitles off; waiting will not help."""
+
+
 def fetch_transcript(video_id: str) -> str | None:
     """Return the transcript text, or None if subtitles are not available (yet)."""
     api = YouTubeTranscriptApi(proxy_config=_proxy_config())
@@ -61,7 +68,9 @@ def fetch_transcript(video_id: str) -> str | None:
             fetched = transcript.fetch()
         except (StopIteration, CouldNotRetrieveTranscript):
             return None
-    except (TranscriptsDisabled, VideoUnavailable):
+    except TranscriptsDisabled:
+        raise SubtitlesDisabled(video_id)
+    except VideoUnavailable:
         return None
     return " ".join(s.text.replace("\n", " ") for s in fetched)
 
@@ -94,7 +103,7 @@ def _title(video_id: str) -> str:
     return r.json().get("title", video_id) if r.status_code == 200 else video_id
 
 
-def poll(db: DB, sources) -> int:
+def poll(db: DB, sources, transcribe: bool = True) -> int:
     """Discover new videos and fill in subtitles for waiting ones. Returns items made ready."""
     now = datetime.now(timezone.utc)
     for src in sources:
@@ -126,14 +135,20 @@ def poll(db: DB, sources) -> int:
     ready = 0
     for item in db.query("SELECT * FROM items WHERE kind='youtube' AND status='waiting'"):
         video_id = item["id"].split(":", 1)[1]
+        waited = now - datetime.fromisoformat(item["fetched_at"])
         try:
             text = fetch_transcript(video_id)
+        except SubtitlesDisabled:
+            text, waited = None, SUBTITLE_WAIT
         except Exception as e:  # network errors, IP blocks: retry next poll
             log.warning("transcript fetch failed for %s: %s", video_id, " ".join(str(e).split())[:160])
             continue
         if text:
             db.execute("UPDATE items SET content=?, status='pending' WHERE id=?", (text, item["id"]))
             ready += 1
-        elif now - datetime.fromisoformat(item["published_at"]) > timedelta(hours=WAIT_HOURS):
+        elif transcribe and waited >= SUBTITLE_WAIT:
+            log.info("no subtitles for %s, queueing audio transcription", video_id)
+            db.mark_item(item["id"], "transcribe")
+        elif waited > timedelta(hours=WAIT_HOURS):
             db.mark_item(item["id"], "error", "no subtitles after waiting")
     return ready
