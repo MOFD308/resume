@@ -11,7 +11,6 @@ import hashlib
 import json
 import logging
 import os
-import re
 from datetime import datetime, timedelta, timezone
 
 from ..db import DB
@@ -20,10 +19,6 @@ log = logging.getLogger(__name__)
 
 DISCORD_PACKAGES = {"com.discord", "com.discord.alpha", "com.discord.beta"}
 DEDUPE_HOURS = 24
-
-
-def _has_number(text: str) -> bool:
-    return bool(re.search(r"\d", text))
 
 
 def _new_lines(db: DB, source_name: str, text: str) -> list[str]:
@@ -67,9 +62,6 @@ def ingest_notification(db: DB, sources, payload: dict) -> dict:
     item_id = "discord:n:" + hashlib.sha1(f"{src.name}|{now}|{content}".encode()).hexdigest()[:16]
     db.add_item(id=item_id, kind="discord", author=src.name, category=src.category,
                 title=title, url=None, content=f"{title}\n{content}", published_at=now)
-    if not _has_number(content) and src.category == "levels":
-        db.mark_item(item_id, "skipped", "no numbers in message")
-        return {"status": "skipped"}
     return {"status": "stored", "id": item_id}
 
 

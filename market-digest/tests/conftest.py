@@ -54,6 +54,6 @@ class FakeLLM:
         self.calls.append(item["id"])
         return self.ext
 
-    def brief(self, kind, data):
-        self.last_brief_data = data
+    def brief(self, kind, data, instructions=None):
+        self.last_brief_data, self.last_instructions = data, instructions
         return Brief(headline="SPY 580 是多方共识支撑", overview="概述", focus=["SPY 580"], disagreements=[])

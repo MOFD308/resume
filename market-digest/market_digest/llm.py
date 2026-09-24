@@ -75,7 +75,7 @@ class LLM:
                     {"type": "text", "text": user + "\n\nThe attached images are part of this content."}]
         return self._parse(EXTRACT_SYSTEM, user, Extraction)
 
-    def brief(self, kind: str, data: dict) -> Brief:
-        user = (f"Newsletter: {kind}\n\nData (JSON):\n"
-                + json.dumps(data, ensure_ascii=False, default=str))
+    def brief(self, kind: str, data: dict, instructions: str | None = None) -> Brief:
+        user = (f"Newsletter: {kind}\n\n" + (f"{instructions}\n\n" if instructions else "")
+                + "Data (JSON):\n" + json.dumps(data, ensure_ascii=False, default=str))
         return self._parse(BRIEF_SYSTEM, user, Brief)

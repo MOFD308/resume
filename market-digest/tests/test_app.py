@@ -21,6 +21,35 @@ def test_process_pending_saves_levels_and_sends_macro_alert(db, cfg, monkeypatch
     assert len(sent) == 1
 
 
+def test_macro_items_do_not_email_immediately_by_default(db, cfg, monkeypatch):
+    sent = []
+    monkeypatch.setattr(newsletter, "send_email", lambda subject, html, text="": sent.append(subject))
+    add(db, "x:m1", "B", kind="x")
+    pipeline.process_pending(cfg, db, FakeLLM(extraction([], macro="- 地缘风险上升", risk="high")))
+    assert sent == []
+
+
+def test_daily_macro_digest_combines_all_sources(db, cfg, monkeypatch):
+    sent = []
+    monkeypatch.setattr(newsletter, "send_email", lambda subject, html, text="": sent.append((subject, html)))
+    add(db, "youtube:m1", "A", hours_ago=5, ext=extraction([], macro="- 美联储推迟降息", risk="elevated"))
+    add(db, "x:m2", "B", kind="x", hours_ago=2, ext=extraction([], macro="- 油价上涨推高通胀", risk="high"))
+    add(db, "x:old", "B", kind="x", hours_ago=30, ext=extraction([], macro="- 旧观点", risk="low"))
+    add(db, "youtube:lv", "A", hours_ago=1, ext=extraction([level("SPY", 580)]))  # levels only: not macro
+    llm = FakeLLM()
+
+    newsletter.send(cfg, db, llm, "macro_daily")
+    authors = [m["author"] for m in llm.last_brief_data["macro"]]
+    assert sorted(authors) == ["A", "B"] and "by theme" in llm.last_instructions
+    subject, html = sent[0]
+    assert subject.startswith("【每日宏观总结】")
+    assert "美联储推迟降息" in html and "油价上涨推高通胀" in html and "旧观点" not in html
+    assert "点位总表" not in html
+
+    newsletter.send(cfg, db, llm, "macro_daily")  # nothing new since the last digest
+    assert sent[1][0] == "【每日宏观总结】暂无新内容"
+
+
 def test_failed_extraction_is_marked_error(db, cfg):
     add(db, "youtube:bad", "A")
 

@@ -1,7 +1,7 @@
 """
 python -m market_digest run                  # everything: polling, Discord bot, schedules, dashboard
 python -m market_digest poll                 # poll all sources once and extract levels
-python -m market_digest send premarket       # send one newsletter now (premarket|midday|close|weekly)
+python -m market_digest send premarket       # send one newsletter now (premarket|midday|close|macro_daily|weekly)
 python -m market_digest preview premarket    # write the newsletter HTML to data/ instead of emailing
 python -m market_digest resolve-youtube @handle
 """
@@ -18,7 +18,7 @@ log = logging.getLogger("market_digest")
 
 
 def _parse_schedule(spec: str) -> dict:
-    """'08:45' -> weekdays at 08:45; 'sun 18:00' -> Sundays at 18:00."""
+    """'08:45' -> weekdays at 08:45; 'sun 18:00' -> Sundays; 'mon-sun 07:30' -> every day."""
     parts = spec.split()
     day, hm = (parts[0], parts[1]) if len(parts) == 2 else ("mon-fri", parts[0])
     hour, minute = hm.split(":")
@@ -40,7 +40,7 @@ def run(cfg, db, llm, host: str, port: int) -> None:
     sched.add_job(pipeline.run_once, "interval", minutes=cfg.get("poll_minutes", 5),
                   args=(cfg, db, llm), id="poll", max_instances=1, coalesce=True,
                   next_run_time=datetime.now(sched.timezone))
-    for kind in ("premarket", "midday", "close", "weekly"):
+    for kind in ("premarket", "midday", "close", "macro_daily", "weekly"):
         spec = cfg.get("schedule", {}).get("weekly_macro" if kind == "weekly" else kind)
         if spec:
             sched.add_job(newsletter.send, "cron", args=(cfg, db, llm, kind), id=kind,
@@ -65,7 +65,7 @@ def main() -> None:
     sub.add_parser("poll")
     for name in ("send", "preview"):
         p = sub.add_parser(name)
-        p.add_argument("kind", choices=["premarket", "midday", "close", "weekly"])
+        p.add_argument("kind", choices=["premarket", "midday", "close", "macro_daily", "weekly"])
     p_yt = sub.add_parser("resolve-youtube")
     p_yt.add_argument("handle")
     args = parser.parse_args()

@@ -19,12 +19,13 @@ level_ttl_days:
 
 cluster_tolerance_pct: 0.6      # 不同博主给的点位相差多少 % 以内视为同一个点位
 
-schedule:                       # 美东时间，周一到周五
-  premarket: "08:45"
+schedule:                       # 美东时间。只写时间 = 周一到周五；可加星期，如 "sun 18:00"、"mon-sun 07:30"
+  premarket: "08:45"            # 点位简报（点位本身在 Dashboard 上实时更新）
   midday: "12:30"
   close: "16:30"
+  macro_daily: "mon-sun 19:00"  # 每日宏观总结：综合过去 24 小时所有来源的宏观观点
   weekly_macro: "sun 18:00"     # 宏观周报
-macro_alert_immediately: true   # 宏观视频/文章一更新就单独发一封邮件
+macro_alert_immediately: false  # true = 每条宏观视频/帖子一出来就单独发一封邮件（默认只发每日总结）
 
 # ------------------------------------------------------------------
 # 信息源。category:

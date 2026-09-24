@@ -45,7 +45,7 @@ def process_pending(cfg: Config, db: DB, llm: LLM) -> int:
                 done += 1
                 log.info("%s: %d level(s)%s", item["id"], len(extraction.levels),
                          ", macro" if extraction.is_macro else "")
-                if extraction.is_macro and cfg.get("macro_alert_immediately", True):
+                if extraction.is_macro and cfg.get("macro_alert_immediately", False):
                     try:
                         newsletter.send_macro_alert(cfg, db, item["id"])
                     except Exception:

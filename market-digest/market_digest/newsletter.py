@@ -1,4 +1,8 @@
-"""Scheduled newsletters (pre-market / midday / close / weekly macro) and instant macro alerts."""
+"""Scheduled newsletters and optional instant macro alerts.
+
+Level newsletters (premarket / midday / close) cover price levels; macro newsletters (daily /
+weekly) synthesise the macro views from every source into one read.
+"""
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -15,7 +19,16 @@ from .mailer import send_email
 
 log = logging.getLogger(__name__)
 
-TITLES = {"premarket": "盘前点位", "midday": "盘中更新", "close": "收盘复盘", "weekly": "宏观周报"}
+TITLES = {"premarket": "盘前点位", "midday": "盘中更新", "close": "收盘复盘",
+          "macro_daily": "每日宏观总结", "weekly": "宏观周报"}
+LEVEL_KINDS = ("premarket", "midday", "close")
+MACRO_KINDS = ("macro_daily", "weekly")
+
+MACRO_INSTRUCTIONS = """This is a macro digest. In `overview`, organise the views by theme (e.g. rates \
+and the Fed, inflation and jobs, geopolitics and war, fiscal/liquidity, earnings) with a short \
+paragraph per theme, naming which author holds which view, then end with the overall risk picture. \
+`focus` lists upcoming events or data the authors say to watch and key risks; `disagreements` lists \
+where the authors disagree."""
 LEVEL_TYPES = {"support": "支撑", "resistance": "阻力", "target": "目标", "stop": "止损",
                "entry": "入场", "pivot": "多空分界", "other": "其他"}
 RISK = {"low": "低", "moderate": "中", "elevated": "偏高", "high": "高"}
@@ -33,7 +46,6 @@ env.filters["fromjson"] = lambda s: json.loads(s or "[]")
 def _local(cfg: Config, iso: str) -> str:
     tz = ZoneInfo(cfg.get("timezone", "America/New_York"))
     return datetime.fromisoformat(iso).astimezone(tz).strftime("%m-%d %H:%M")
-
 
 
 def _near(board: list[dict], pct: float = 1.0) -> list[dict]:
@@ -57,51 +69,68 @@ def _compact_board(board: list[dict], limit: int = 30) -> list[dict]:
     } for r in board[:limit]]
 
 
+def _since(db: DB, key: str, default: timedelta) -> datetime:
+    last = db.get_kv(key)
+    return datetime.fromisoformat(last) if last else datetime.now(timezone.utc) - default
+
+
 def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str]:
     now = datetime.now(timezone.utc)
-    last = db.get_kv("newsletter:last_sent")
-    since = datetime.fromisoformat(last) if last else now - timedelta(hours=18)
-    if kind == "weekly":
-        since = now - timedelta(days=7)
+    board, near, macro = [], [], []
+    if kind in LEVEL_KINDS:
+        since = _since(db, "newsletter:last_sent", timedelta(hours=18))
+        ttl = cfg.get("level_ttl_days")
+        tickers = sorted({l["ticker"] for l in aggregate.active_levels(db, ttl)})
+        board = aggregate.build_board(db, prices.get_prices(tickers), ttl,
+                                      cfg.get("cluster_tolerance_pct", 0.6))
+        near = _near(board)[:20]
+        data = {
+            "newsletter": TITLES[kind],
+            "new_since": since.isoformat(),
+            "board": _compact_board(board),
+            "levels_near_price": [{"ticker": c["ticker"], "last_price": c["last_price"], "level": c["price"],
+                                   "types": c["types"], "authors": c["authors"],
+                                   "distance_pct": c["distance_pct"]} for c in near],
+        }
+        instructions = None
+    else:
+        since = (now - timedelta(days=7) if kind == "weekly"
+                 else _since(db, "newsletter:macro_daily:last_sent", timedelta(hours=24)))
+        macro = aggregate.macro_items(db, since)
+        data = {
+            "newsletter": TITLES[kind],
+            "period_since": since.isoformat(),
+            "macro": [{"author": m["author"], "source": m["kind"], "title": m["title"],
+                       "published": m["published_at"], "risk": m["risk_level"],
+                       "summary": m["macro_summary"], "themes": json.loads(m["macro_themes"] or "[]")}
+                      for m in macro],
+        }
+        instructions = MACRO_INSTRUCTIONS
 
-    ttl = cfg.get("level_ttl_days")
-    tickers = sorted({l["ticker"] for l in aggregate.active_levels(db, ttl)})
-    board = aggregate.build_board(db, prices.get_prices(tickers), ttl, cfg.get("cluster_tolerance_pct", 0.6))
-    new_levels = db.query("SELECT * FROM levels WHERE published_at >= ? ORDER BY ticker, price",
-                          (since.isoformat(),))
-    macro = aggregate.macro_items(db, since if kind != "premarket" else now - timedelta(hours=36))
-
-    data = {
-        "newsletter": TITLES[kind],
-        "new_since": since.isoformat(),
-        "board": _compact_board(board) if kind != "weekly" else [],
-        "levels_near_price": [{"ticker": c["ticker"], "last_price": c["last_price"], "level": c["price"],
-                               "types": c["types"], "authors": c["authors"],
-                               "distance_pct": c["distance_pct"]} for c in _near(board)[:20]],
-        "macro": [{"author": m["author"], "title": m["title"], "risk": m["risk_level"],
-                   "summary": m["macro_summary"]} for m in macro],
-    }
     try:
-        brief = llm.brief(kind, data)
+        brief = llm.brief(kind, data, instructions) if (board or macro) else None
     except Exception:
         log.exception("brief generation failed; sending without it")
         brief = None
 
     html = env.get_template("newsletter.html").render(
-        title=TITLES[kind], kind=kind, brief=brief, board=board[:40], near=_near(board)[:20],
-        new_levels=new_levels, macro=macro, dashboard_url=cfg.get("dashboard_url"),
+        title=TITLES[kind], kind=kind, brief=brief, board=board[:40], near=near, macro=macro,
+        dashboard_url=cfg.get("dashboard_url"),
         date=now.astimezone(ZoneInfo(cfg.get("timezone", "America/New_York"))).strftime("%Y-%m-%d"),
         local=lambda iso: _local(cfg, iso),
     )
-    subject = f"【{TITLES[kind]}】" + (brief.headline if brief else data["new_since"][:10])
+    fallback = "暂无新内容" if not (board or macro) else now.strftime("%Y-%m-%d")
+    subject = f"【{TITLES[kind]}】" + (brief.headline if brief else fallback)
     return subject, html
 
 
 def send(cfg: Config, db: DB, llm: LLM, kind: str) -> None:
     subject, html = build(cfg, db, llm, kind)
     send_email(subject, html)
-    if kind != "weekly":
+    if kind in LEVEL_KINDS:
         db.set_kv("newsletter:last_sent", utcnow())
+    elif kind == "macro_daily":
+        db.set_kv("newsletter:macro_daily:last_sent", utcnow())
 
 
 def send_macro_alert(cfg: Config, db: DB, item_id: str) -> None:

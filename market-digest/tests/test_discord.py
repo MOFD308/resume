@@ -29,9 +29,8 @@ def test_other_apps_and_unmatched_servers_are_ignored(db, cfg):
                                                   "text": "SPY 1"})["status"] == "ignored"
 
 
-def test_chatter_without_numbers_is_skipped_for_level_sources(db, cfg):
-    cfg.by_kind("discord")[0].category = "levels"
+def test_messages_without_numbers_are_kept_for_macro_views(db, cfg):
     res = discord.ingest_notification(db, cfg.by_kind("discord"), {
-        "package": "com.discord", "title": "Mike (Trading Room)", "text": "good morning everyone"})
-    assert res["status"] == "skipped"
-    assert db.pending_items() == []
+        "package": "com.discord", "title": "Mike (Trading Room)", "text": "Fed sounds hawkish, careful here"})
+    assert res["status"] == "stored"
+    assert len(db.pending_items()) == 1
