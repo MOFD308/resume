@@ -23,7 +23,13 @@ from ..db import DB
 log = logging.getLogger(__name__)
 
 FEED_URL = "https://www.youtube.com/feeds/videos.xml?channel_id={}"
-LANGUAGES = ("en", "en-US", "zh-Hans", "zh-Hant", "zh", "zh-CN", "zh-TW")
+ZH = ("zh-Hans", "zh", "zh-CN", "zh-Hant", "zh-TW", "zh-HK")
+EN = ("en", "en-US", "en-GB")
+
+
+def _languages(preferred: str | None) -> tuple[str, ...]:
+    """Prefer the channel's own language so a translated track isn't picked over the original."""
+    return EN + ZH if (preferred or "zh").startswith("en") else ZH + EN
 SUBTITLE_WAIT = timedelta(minutes=90)
 WAIT_HOURS = 12  # give up if neither subtitles nor transcription produce text
 
@@ -56,11 +62,11 @@ class SubtitlesDisabled(Exception):
     """The uploader turned subtitles off; waiting will not help."""
 
 
-def fetch_transcript(video_id: str) -> str | None:
+def fetch_transcript(video_id: str, language: str | None = None) -> str | None:
     """Return the transcript text, or None if subtitles are not available (yet)."""
     api = YouTubeTranscriptApi(proxy_config=_proxy_config())
     try:
-        fetched = api.fetch(video_id, languages=LANGUAGES)
+        fetched = api.fetch(video_id, languages=_languages(language))
     except NoTranscriptFound:
         # Fall back to whatever language exists (e.g. only a Korean auto-caption track).
         try:
@@ -103,7 +109,7 @@ def _title(video_id: str) -> str:
     return r.json().get("title", video_id) if r.status_code == 200 else video_id
 
 
-def poll(db: DB, sources, transcribe: bool = True) -> int:
+def poll(db: DB, sources, transcribe: bool = True, language: str | None = None) -> int:
     """Discover new videos and fill in subtitles for waiting ones. Returns items made ready."""
     now = datetime.now(timezone.utc)
     for src in sources:
@@ -137,7 +143,7 @@ def poll(db: DB, sources, transcribe: bool = True) -> int:
         video_id = item["id"].split(":", 1)[1]
         waited = now - datetime.fromisoformat(item["fetched_at"])
         try:
-            text = fetch_transcript(video_id)
+            text = fetch_transcript(video_id, language)
         except SubtitlesDisabled:
             text, waited = None, SUBTITLE_WAIT
         except Exception as e:  # network errors, IP blocks: retry next poll

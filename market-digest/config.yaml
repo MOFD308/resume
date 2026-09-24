@@ -30,7 +30,10 @@ macro_alert_immediately: false
 youtube_transcribe:             # 视频没有字幕时：下载音频，用 Whisper 在本机做语音识别（免费）
   enabled: true
   model: small                  # tiny / base / small / medium：越大越准越慢。small 转 30 分钟视频约 5–15 分钟（CPU）
-  language: zh                  # 频道语言；留空自动识别
+  language: zh                  # 频道语言：优先下载这个语言的字幕，语音识别也按它识别
+  # 如果日志里出现 “Sign in to confirm you're not a bot”，让程序借用浏览器里的 YouTube 登录（二选一）：
+  cookies_from_browser: ""      # 填 firefox（最稳）/ edge / chrome；该浏览器需登录过 YouTube
+  cookies_file: ""              # 或者用浏览器插件导出的 cookies.txt 的路径
 
 youtube:
   - name: Shanghao Jin

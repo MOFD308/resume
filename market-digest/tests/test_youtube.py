@@ -14,7 +14,7 @@ def _new_video(monkeypatch, db, video_id="vid00000001"):
 
 def test_video_with_subtitles_goes_straight_to_extraction(db, monkeypatch):
     _new_video(monkeypatch, db)
-    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid: "SPY 580 是支撑")
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, lang=None: "SPY 580 是支撑")
     assert youtube.poll(db, SRC) == 1
     assert db.pending_items()[0]["content"] == "SPY 580 是支撑"
 
@@ -22,7 +22,7 @@ def test_video_with_subtitles_goes_straight_to_extraction(db, monkeypatch):
 def test_disabled_subtitles_are_queued_for_transcription(db, monkeypatch):
     _new_video(monkeypatch, db)
 
-    def disabled(vid):
+    def disabled(vid, lang=None):
         raise youtube.SubtitlesDisabled(vid)
 
     monkeypatch.setattr(youtube, "fetch_transcript", disabled)
@@ -32,7 +32,7 @@ def test_disabled_subtitles_are_queued_for_transcription(db, monkeypatch):
 
 def test_missing_subtitles_wait_before_transcribing(db, monkeypatch):
     _new_video(monkeypatch, db)
-    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid: None)
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, lang=None: None)
     youtube.poll(db, SRC)
     assert db.query("SELECT status FROM items")[0]["status"] == "waiting"  # auto-captions may still come
 
@@ -44,10 +44,10 @@ def test_missing_subtitles_wait_before_transcribing(db, monkeypatch):
 
 def test_transcription_fills_content(db, monkeypatch, tmp_path):
     _new_video(monkeypatch, db)
-    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid: None)
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, lang=None: None)
     youtube.poll(db, SRC, transcribe=True)
     db.mark_item("youtube:vid00000001", "transcribe")
-    monkeypatch.setattr(transcribe, "download_audio", lambda vid, folder, proxy=None: Path(folder) / "a.m4a")
+    monkeypatch.setattr(transcribe, "download_audio", lambda vid, folder, *a, **k: Path(folder) / "a.m4a")
     monkeypatch.setattr(transcribe, "transcribe_file", lambda path, size, lang: "纳指 20000 是阻力")
 
     assert transcribe.transcribe_pending(db) == 1
@@ -57,7 +57,7 @@ def test_transcription_fills_content(db, monkeypatch, tmp_path):
 
 def test_transcription_gives_up_after_repeated_failures(db, monkeypatch):
     _new_video(monkeypatch, db)
-    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid: None)
+    monkeypatch.setattr(youtube, "fetch_transcript", lambda vid, lang=None: None)
     youtube.poll(db, SRC)
     db.mark_item("youtube:vid00000001", "transcribe")
 

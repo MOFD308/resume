@@ -57,7 +57,20 @@ YouTube 会拦截云服务器 IP 下载字幕，家里的网络没有这个问�
 **B. 云服务器 VPS**
 随时在线，自带公网地址，配好域名后用 `docker-compose` 里的 Caddy 自动上 HTTPS。但 **YouTube 字幕需要住宅代理**，在 `.env` 里填 `WEBSHARE_PROXY_USERNAME/PASSWORD` 或 `YOUTUBE_PROXY`。
 
-## 安装步骤
+## Windows 安装（推荐：跑在家里电脑上）
+
+1. **安装 Python**：到 https://www.python.org/downloads/ 下载 Python 3.12。安装第一页**务必勾选「Add python.exe to PATH」**。
+2. **下载代码**：[点这里下载 ZIP](https://github.com/MOFD308/resume/archive/refs/heads/claude/stock-aggregation-macro-analysis-wz1qby.zip)，解压到一个固定位置，比如 `D:\market-digest`。之后用到的是里面的 `market-digest` 文件夹。
+3. **双击 `windows\install.bat`**：它会自动安装依赖，然后用记事本打开 `.env`。把密钥填进去，保存，关掉记事本。
+4. **双击 `windows\check.bat`**：逐项检查 Claude、Gmail、X、YouTube 能不能连通，全部 ✅ 后你会收到一封测试邮件。
+5. **双击 `windows\start.bat`**：程序启动，浏览器会自动打开看板。这个黑色窗口可以最小化，**但不要关**，关掉程序就停了。
+6. **（可选）双击 `windows\autostart.bat`**：设置开机自动启动，还可以顺便关闭插电时的自动睡眠。
+
+第一次启动时，Windows 防火墙可能会弹窗，点「允许」。这样手机在同一个 Wi-Fi 下就能打开 `http://电脑IP:8000` 看看板。
+
+如果日志里出现 `Sign in to confirm you're not a bot`（下载没字幕的视频音频时），先用 Firefox 登录一下 YouTube，再把 `config.yaml` 里的 `cookies_from_browser` 改成 `firefox`。
+
+## 安装步骤（通用 / Mac / Linux）
 
 ### 1. 准备密钥
 
@@ -69,7 +82,7 @@ cp config.example.yaml config.yaml
 
 在 `.env` 里填：
 - `ANTHROPIC_API_KEY`：到 https://console.anthropic.com/ 申请。
-- `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`：Gmail 先开两步验证，再到 https://myaccount.google.com/apppasswords 生成「应用专用密码」。
+- `GMAIL_ADDRESS` / `GMAIL_APP_PASSWORD`：**不是你的 Gmail 登录密码**，而是 Google 为程序单独生成的 16 位「应用专用密码」。Gmail 先开两步验证，再到 https://myaccount.google.com/apppasswords 生成。`NEWSLETTER_TO` 填收简报的邮箱，可以就是同一个。
 - `INGEST_TOKEN`：随便设一串长的随机字符，手机转发通知时要用。
 - `DASHBOARD_PASSWORD`：看板的登录密码。**放到公网上一定要设。**
 - `X_BEARER_TOKEN`（可选）：到 https://developer.x.com 开通按量付费，创建 App 后复制 Bearer Token。

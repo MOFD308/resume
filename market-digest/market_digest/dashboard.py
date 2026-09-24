@@ -19,7 +19,7 @@ security = HTTPBasic(auto_error=False)
 
 def create_app(cfg: Config, db: DB, on_new_item=None) -> FastAPI:
     app = FastAPI(title="Market Digest", docs_url=None, redoc_url=None)
-    page = (Path(__file__).parent / "templates" / "dashboard.html").read_text()
+    page = (Path(__file__).parent / "templates" / "dashboard.html").read_text(encoding="utf-8")
 
     def auth(creds: HTTPBasicCredentials | None = Depends(security)):
         password = os.environ.get("DASHBOARD_PASSWORD")

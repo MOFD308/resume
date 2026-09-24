@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parent.parent
 def _load_dotenv(path: Path) -> None:
     if not path.exists():
         return
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8-sig").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -57,7 +57,7 @@ class Config:
 def load_config(path: str | Path | None = None) -> Config:
     _load_dotenv(ROOT / ".env")
     path = Path(path or os.environ.get("MARKET_DIGEST_CONFIG", ROOT / "config.yaml"))
-    raw = yaml.safe_load(path.read_text()) or {}
+    raw = yaml.safe_load(path.read_text(encoding="utf-8-sig")) or {}
     sources = []
     for kind in ("youtube", "websites", "x", "discord"):
         for entry in raw.get(kind) or []:

@@ -22,12 +22,19 @@ def _model(size: str):
     return _models[size]
 
 
-def download_audio(video_id: str, folder: Path, proxy: str | None = None) -> Path:
+def download_audio(video_id: str, folder: Path, proxy: str | None = None,
+                   cookies_from_browser: str | None = None, cookies_file: str | None = None) -> Path:
+    """If YouTube answers "Sign in to confirm you're not a bot", let yt-dlp use your browser's
+    YouTube login: cookies_from_browser="firefox" (or "edge"/"chrome"), or an exported cookies.txt."""
     import yt_dlp
     opts = {"format": "bestaudio/best", "outtmpl": str(folder / "%(id)s.%(ext)s"),
             "quiet": True, "no_warnings": True, "noprogress": True}
     if proxy:
         opts["proxy"] = proxy
+    if cookies_from_browser:
+        opts["cookiesfrombrowser"] = (cookies_from_browser,)
+    if cookies_file:
+        opts["cookiefile"] = cookies_file
     with yt_dlp.YoutubeDL(opts) as ydl:
         info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=True)
         return Path(ydl.prepare_filename(info))
@@ -45,7 +52,8 @@ def transcribe_file(path: Path, model_size: str = "small", language: str | None 
 
 
 def transcribe_pending(db: DB, model_size: str = "small", language: str | None = None,
-                       proxy: str | None = None) -> int:
+                       proxy: str | None = None, cookies_from_browser: str | None = None,
+                       cookies_file: str | None = None) -> int:
     """Transcribe queued videos one by one. Returns how many became ready for extraction."""
     done = 0
     for item in db.query("SELECT id, title FROM items WHERE kind='youtube' AND status='transcribe' "
@@ -57,7 +65,7 @@ def transcribe_pending(db: DB, model_size: str = "small", language: str | None =
         log.info("transcribing %s (%s), attempt %d", video_id, item["title"], attempts)
         try:
             with tempfile.TemporaryDirectory() as tmp:
-                audio = download_audio(video_id, Path(tmp), proxy)
+                audio = download_audio(video_id, Path(tmp), proxy, cookies_from_browser, cookies_file)
                 text = transcribe_file(audio, model_size, language)
         except Exception as e:
             log.warning("transcription failed for %s: %s", video_id, " ".join(str(e).split())[:200])
