@@ -40,6 +40,10 @@ env.filters["ltype"] = lambda t: LEVEL_TYPES.get(t, t)
 env.filters["risk"] = lambda r: RISK.get(r, r or "")
 env.filters["kind"] = lambda k: KIND.get(k, k)
 env.filters["px"] = lambda v: "" if v is None else f"{v:,.2f}".rstrip("0").rstrip(".")
+TOPICS = {"rates": "利率", "fed": "美联储", "inflation": "通胀", "jobs": "就业", "geopolitics": "地缘政治",
+          "war": "战争", "fiscal": "财政", "liquidity": "流动性", "earnings": "财报", "credit": "信用",
+          "fx": "汇率", "commodities": "大宗商品", "china": "中国", "other": "其他"}
+env.filters["topic"] = lambda t: TOPICS.get(t, t)
 env.filters["fromjson"] = lambda s: json.loads(s or "[]")
 
 
@@ -74,29 +78,70 @@ def _since(db: DB, key: str, default: timedelta) -> datetime:
     return datetime.fromisoformat(last) if last else datetime.now(timezone.utc) - default
 
 
-def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str]:
+SNAPSHOT_KEY = "levels:last_email_snapshot"
+
+
+def _level_changes(db: DB, board: list[dict], active: list[dict]) -> dict:
+    """Mark calls that are new or moved since the last level email, and collect removed ones."""
+    raw = db.get_kv(SNAPSHOT_KEY)
+    if raw is None:
+        return {"first_email": True, "changes_list": [], "removed": []}
+    changes, removed = aggregate.diff_levels(json.loads(raw), active)
+    removed_tickers = {l["ticker"] for l in removed}
+    changes_list = []
+    for row in board:
+        for c in row["clusters"]:
+            for call in c["calls"]:
+                call.update(changes.get(call["id"], {"change": None, "old_price": None}))
+                if call["change"]:
+                    changes_list.append(call)
+            c["changed"] = any(call["change"] for call in c["calls"])
+        row["changed"] = any(c["changed"] for c in row["clusters"]) or row["ticker"] in removed_tickers
+    # Changed tickers first, otherwise keep the usual order (most authors first).
+    board.sort(key=lambda r: not r["changed"])
+    changes_list.sort(key=lambda l: (l["change"] != "new", l["ticker"], -l["price"]))
+    return {"first_email": False, "changes_list": changes_list, "removed": removed}
+
+
+def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str, list | None]:
+    """Render one newsletter. Returns (subject, html, level snapshot to store once it is sent)."""
     now = datetime.now(timezone.utc)
-    board, near, macro = [], [], []
+    board, near, macro, stats, snap = [], [], [], [], None
+    extra = {"first_email": False, "changes_list": [], "removed": []}
     if kind in LEVEL_KINDS:
-        since = _since(db, "newsletter:last_sent", timedelta(hours=18))
         ttl = cfg.get("level_ttl_days")
-        tickers = sorted({l["ticker"] for l in aggregate.active_levels(db, ttl)})
-        board = aggregate.build_board(db, prices.get_prices(tickers), ttl,
+        active = aggregate.active_levels(db, ttl)
+        board = aggregate.build_board(db, prices.get_prices(sorted({l["ticker"] for l in active})), ttl,
                                       cfg.get("cluster_tolerance_pct", 0.6))
+        extra = _level_changes(db, board, active)
         near = _near(board)[:20]
+        snap = aggregate.snapshot(active)
+        moved = sum(1 for l in extra["changes_list"] if l["change"] == "moved")
+        stats = [("标的", len(board), None), ("点位", len(active), None),
+                 ("新增", len(extra["changes_list"]) - moved, "#b7791f"), ("调整", moved, "#6b46c1"),
+                 ("移除", len(extra["removed"]), "#8a92a0")]
         data = {
             "newsletter": TITLES[kind],
-            "new_since": since.isoformat(),
             "board": _compact_board(board),
+            "changes_since_last_email": [
+                {"ticker": l["ticker"], "author": l["author"], "type": l["level_type"], "change": l["change"],
+                 "price": l["price"], "old_price": l["old_price"], "note": l["note"]}
+                for l in extra["changes_list"]] + [
+                {"ticker": l["ticker"], "author": l["author"], "type": l["level_type"], "change": "removed",
+                 "price": l["price"]} for l in extra["removed"]],
             "levels_near_price": [{"ticker": c["ticker"], "last_price": c["last_price"], "level": c["price"],
                                    "types": c["types"], "authors": c["authors"],
                                    "distance_pct": c["distance_pct"]} for c in near],
         }
-        instructions = None
+        instructions = ("Lead the overview with what changed since the last email (new, moved and "
+                        "removed levels), then the levels closest to the current price.")
     else:
         since = (now - timedelta(days=7) if kind == "weekly"
                  else _since(db, "newsletter:macro_daily:last_sent", timedelta(hours=24)))
         macro = aggregate.macro_items(db, since)
+        risks = [m["risk_level"] for m in macro if m["risk_level"]]
+        stats = [("宏观内容", len(macro), None), ("博主", len({m["author"] for m in macro}), None),
+                 ("风险偏高/高", sum(r in ("elevated", "high") for r in risks), "#d64545")] if macro else []
         data = {
             "newsletter": TITLES[kind],
             "period_since": since.isoformat(),
@@ -114,21 +159,21 @@ def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str]:
         brief = None
 
     html = env.get_template("newsletter.html").render(
-        title=TITLES[kind], kind=kind, brief=brief, board=board[:40], near=near, macro=macro,
-        dashboard_url=cfg.get("dashboard_url"),
+        title=TITLES[kind], kind=kind, brief=brief, board=board, near=near, macro=macro, stats=stats,
+        dashboard_url=cfg.get("dashboard_url"), **extra,
         date=now.astimezone(ZoneInfo(cfg.get("timezone", "America/New_York"))).strftime("%Y-%m-%d"),
         local=lambda iso: _local(cfg, iso),
     )
     fallback = "暂无新内容" if not (board or macro) else now.strftime("%Y-%m-%d")
     subject = f"【{TITLES[kind]}】" + (brief.headline if brief else fallback)
-    return subject, html
+    return subject, html, snap
 
 
 def send(cfg: Config, db: DB, llm: LLM, kind: str) -> None:
-    subject, html = build(cfg, db, llm, kind)
+    subject, html, snap = build(cfg, db, llm, kind)
     send_email(subject, html)
     if kind in LEVEL_KINDS:
-        db.set_kv("newsletter:last_sent", utcnow())
+        db.set_kv(SNAPSHOT_KEY, json.dumps(snap, ensure_ascii=False))
     elif kind == "macro_daily":
         db.set_kv("newsletter:macro_daily:last_sent", utcnow())
 

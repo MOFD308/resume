@@ -95,7 +95,7 @@ def main() -> None:
         newsletter.send(cfg, db, llm, args.kind)
     elif args.cmd == "preview":
         from . import newsletter
-        subject, html = newsletter.build(cfg, db, llm, args.kind)
+        subject, html, _ = newsletter.build(cfg, db, llm, args.kind)
         out = ROOT / "data" / f"preview-{args.kind}.html"
         out.parent.mkdir(exist_ok=True)
         out.write_text(html)

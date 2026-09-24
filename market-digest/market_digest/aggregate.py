@@ -128,3 +128,39 @@ def macro_items(db: DB, since: datetime) -> list[dict]:
     return db.query("SELECT id, kind, author, title, url, published_at, macro_summary, risk_level, "
                     "macro_themes FROM items WHERE is_macro=1 AND status='done' AND published_at >= ? "
                     "ORDER BY published_at DESC", (since.isoformat(),))
+
+
+def snapshot(levels: list[dict]) -> list[dict]:
+    """What a level email showed, stored so the next email can highlight changes."""
+    return [{k: l[k] for k in ("author", "ticker", "level_type", "price", "price_high")} for l in levels]
+
+
+def diff_levels(previous: list[dict], current: list[dict]) -> tuple[dict[int, dict], list[dict]]:
+    """Compare two sets of calls by (author, ticker, level_type).
+
+    Returns ({current level id: {"change": "new" | "moved", "old_price": ...}}, removed calls).
+    A call whose author/ticker/type is unchanged but whose price differs counts as "moved".
+    """
+    def key(l):
+        return (l["author"], l["ticker"], l["level_type"])
+
+    before: dict[tuple, list[dict]] = defaultdict(list)
+    for l in previous:
+        before[key(l)].append(l)
+    after: dict[tuple, list[dict]] = defaultdict(list)
+    for l in current:
+        after[key(l)].append(l)
+
+    changes, removed = {}, []
+    for k in set(before) | set(after):
+        old = sorted(before.get(k, []), key=lambda l: l["price"])
+        new = sorted(after.get(k, []), key=lambda l: l["price"])
+        same = {round(l["price"], 2) for l in old} & {round(l["price"], 2) for l in new}
+        old = [l for l in old if round(l["price"], 2) not in same]
+        new = [l for l in new if round(l["price"], 2) not in same]
+        for o, n in zip(old, new):
+            changes[n["id"]] = {"change": "moved", "old_price": o["price"]}
+        for n in new[len(old):]:
+            changes[n["id"]] = {"change": "new", "old_price": None}
+        removed += old[len(new):]
+    return changes, sorted(removed, key=lambda l: (l["ticker"], -l["price"]))

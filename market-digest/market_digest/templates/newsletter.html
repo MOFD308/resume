@@ -1,76 +1,204 @@
+{#- Email-safe layout: tables + inline styles only (Gmail/Outlook strip most <style> rules). -#}
+{%- set C = {
+  'bg': '#eef1f5', 'card': '#ffffff', 'ink': '#14181f', 'ink2': '#4a5260', 'muted': '#8a92a0', 'line': '#e6e9ef',
+  'navy': '#0f1b2d', 'gold': '#f0b429',
+  'sup': '#1f6fd1', 'supbg': '#e8f1fc', 'res': '#d64545', 'resbg': '#fdecec',
+  'new': '#b7791f', 'newbg': '#fff6d9', 'moved': '#6b46c1', 'movedbg': '#f1ebfd', 'gone': '#8a92a0'
+} -%}
+{%- macro pill(text, fg, bg) -%}
+<span style="display:inline-block;padding:1px 8px;border-radius:999px;background:{{ bg }};color:{{ fg }};font-size:12px;line-height:18px;font-weight:600;white-space:nowrap;">{{ text }}</span>
+{%- endmacro -%}
+{%- macro change_badge(call) -%}
+{%- if call.change == 'new' -%}{{ pill('新增', C.new, C.newbg) }}
+{%- elif call.change == 'moved' -%}{{ pill('调整', C.moved, C.movedbg) }}{%- endif -%}
+{%- endmacro -%}
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><title>{{ title }}</title></head>
-<body style="margin:0;padding:0;background:#f4f4f2;font-family:-apple-system,'PingFang SC','Microsoft YaHei',Helvetica,Arial,sans-serif;color:#1b1b1a;">
-<div style="max-width:720px;margin:0 auto;padding:20px 16px;">
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>{{ title }}</title>
+</head>
+<body style="margin:0;padding:0;background:{{ C.bg }};">
+<div style="display:none;max-height:0;overflow:hidden;">{{ brief.headline if brief else title }}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ C.bg }};">
+<tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;font-family:-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Helvetica,Arial,sans-serif;color:{{ C.ink }};">
 
-  <div style="font-size:13px;color:#6b6a66;">{{ date }} · {{ title }}</div>
-  <h1 style="font-size:22px;margin:6px 0 16px;">{{ brief.headline if brief else title }}</h1>
-  {% if dashboard_url %}<p style="margin:0 0 16px;"><a href="{{ dashboard_url }}" style="color:#1f5fbf;">打开实时点位 Dashboard →</a></p>{% endif %}
+  {# ---------- Header ---------- #}
+  <tr><td style="background:{{ C.navy }};border-radius:14px 14px 0 0;padding:22px 24px 20px;">
+    <div style="font-size:12px;letter-spacing:1px;color:{{ C.gold }};font-weight:700;">{{ title }} · {{ date }}</div>
+    <div style="font-size:22px;line-height:1.35;color:#ffffff;font-weight:700;margin-top:6px;">{{ brief.headline if brief else title }}</div>
+    {% if dashboard_url %}<div style="margin-top:14px;"><a href="{{ dashboard_url }}" style="display:inline-block;background:{{ C.gold }};color:{{ C.navy }};text-decoration:none;font-size:13px;font-weight:700;padding:7px 14px;border-radius:8px;">打开实时点位看板 →</a></div>{% endif %}
+  </td></tr>
 
+  {# ---------- Stat tiles ---------- #}
+  {% if stats %}
+  <tr><td style="background:{{ C.card }};padding:16px 16px 4px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      {% for label, value, color in stats %}
+      <td width="{{ (100 / stats|length)|int }}%" style="padding:0 4px 12px;">
+        <div style="background:{{ C.bg }};border-radius:10px;padding:10px 8px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;color:{{ color or C.ink }};line-height:1.2;">{{ value }}</div>
+          <div style="font-size:12px;color:{{ C.ink2 }};margin-top:2px;">{{ label }}</div>
+        </div>
+      </td>
+      {% endfor %}
+    </tr></table>
+  </td></tr>
+  {% endif %}
+
+  {# ---------- AI brief ---------- #}
   {% if brief %}
-  <div style="background:#fff;border-radius:10px;padding:16px 18px;margin-bottom:16px;">
-    <div style="white-space:pre-line;line-height:1.65;font-size:15px;">{{ brief.overview }}</div>
+  <tr><td style="background:{{ C.card }};padding:8px 24px 18px;">
+    <div style="font-size:13px;font-weight:700;color:{{ C.muted }};letter-spacing:1px;margin-bottom:6px;">AI 综述</div>
+    <div style="font-size:15px;line-height:1.75;white-space:pre-line;">{{ brief.overview }}</div>
     {% if brief.focus %}
-    <h3 style="font-size:15px;margin:14px 0 6px;">{{ '需关注的事件与风险' if macro else '重点关注' }}</h3>
-    <ul style="margin:0;padding-left:20px;line-height:1.6;">{% for f in brief.focus %}<li>{{ f }}</li>{% endfor %}</ul>
+    <div style="font-size:14px;font-weight:700;margin:14px 0 6px;">{{ '需关注的事件与风险' if macro else '重点关注' }}</div>
+    {% for f in brief.focus %}<div style="font-size:14px;line-height:1.6;padding:6px 10px;margin-bottom:6px;border-left:3px solid {{ C.gold }};background:#fffbf0;border-radius:0 6px 6px 0;">{{ f }}</div>{% endfor %}
     {% endif %}
     {% if brief.disagreements %}
-    <h3 style="font-size:15px;margin:14px 0 6px;">分歧</h3>
-    <ul style="margin:0;padding-left:20px;line-height:1.6;">{% for f in brief.disagreements %}<li>{{ f }}</li>{% endfor %}</ul>
+    <div style="font-size:14px;font-weight:700;margin:14px 0 6px;">分歧</div>
+    {% for f in brief.disagreements %}<div style="font-size:14px;line-height:1.6;padding:6px 10px;margin-bottom:6px;border-left:3px solid {{ C.moved }};background:{{ C.movedbg }};border-radius:0 6px 6px 0;">{{ f }}</div>{% endfor %}
     {% endif %}
-  </div>
+  </td></tr>
+  {% endif %}
+  <tr><td style="background:{{ C.card }};border-radius:0 0 14px 14px;height:6px;line-height:6px;font-size:0;">&nbsp;</td></tr>
+
+  {# ---------- Changes since last email ---------- #}
+  {% if changes_list or removed %}
+  <tr><td style="padding:22px 4px 8px;font-size:17px;font-weight:800;">本次变化 <span style="font-size:13px;font-weight:400;color:{{ C.ink2 }};">（与上一封点位邮件相比）</span></td></tr>
+  <tr><td style="background:{{ C.card }};border-radius:14px;padding:6px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+      {% for c in changes_list %}
+      <tr><td style="padding:9px 0;border-bottom:1px solid {{ C.line }};width:56px;">{{ change_badge(c) }}</td>
+        <td style="padding:9px 6px;border-bottom:1px solid {{ C.line }};width:64px;font-weight:800;">{{ c.ticker }}</td>
+        <td style="padding:9px 0;border-bottom:1px solid {{ C.line }};">
+          {% if c.change == 'moved' %}<span style="color:{{ C.gone }};text-decoration:line-through;">{{ c.old_price|px }}</span> → {% endif %}
+          <b>{{ c.price|px }}</b>{% if c.price_high %}–{{ c.price_high|px }}{% endif %} {{ c.level_type|ltype }}
+          <span style="color:{{ C.ink2 }};">· {{ c.author }}：{{ c.note }}</span></td></tr>
+      {% endfor %}
+      {% for c in removed %}
+      <tr><td style="padding:9px 0;border-bottom:1px solid {{ C.line }};width:56px;">{{ pill('移除', C.gone, C.bg) }}</td>
+        <td style="padding:9px 6px;border-bottom:1px solid {{ C.line }};width:64px;font-weight:800;color:{{ C.gone }};">{{ c.ticker }}</td>
+        <td style="padding:9px 0;border-bottom:1px solid {{ C.line }};color:{{ C.gone }};"><span style="text-decoration:line-through;">{{ c.price|px }}</span> {{ c.level_type|ltype }} · {{ c.author }}（已过期或被博主撤下）</td></tr>
+      {% endfor %}
+    </table>
+  </td></tr>
+  {% elif first_email %}
+  <tr><td style="padding:16px 4px 0;font-size:13px;color:{{ C.ink2 }};">这是第一封点位邮件，从下一封开始会用 {{ pill('新增', C.new, C.newbg) }} {{ pill('调整', C.moved, C.movedbg) }} {{ pill('移除', C.gone, '#ffffff') }} 标出变化。</td></tr>
+  {% elif board %}
+  <tr><td style="padding:16px 4px 0;font-size:13px;color:{{ C.ink2 }};">与上一封点位邮件相比，点位没有变化。</td></tr>
   {% endif %}
 
+  {# ---------- Levels in play ---------- #}
   {% if near %}
-  <h2 style="font-size:17px;margin:20px 0 8px;">接近现价的点位（±1%）</h2>
-  <table cellpadding="6" cellspacing="0" style="width:100%;background:#fff;border-radius:10px;border-collapse:collapse;font-size:14px;">
-    <tr style="color:#6b6a66;text-align:left;"><th>代码</th><th>现价</th><th>点位</th><th>距离</th><th>类型</th><th>来源</th></tr>
-    {% for c in near %}
-    <tr style="border-top:1px solid #ecebe7;">
-      <td><b>{{ c.ticker }}</b></td><td>{{ '%.2f'|format(c.last_price) }}</td><td><b>{{ c.price|px }}</b></td>
-      <td style="color:{{ '#1f5fbf' if c.distance_pct < 0 else '#b3261e' }};">{{ '%+.2f'|format(c.distance_pct) }}%</td>
-      <td>{{ c.types|map('ltype')|join('/') }}</td><td>{{ c.authors|join('、') }}</td>
-    </tr>
-    {% endfor %}
-  </table>
-  {% endif %}
-
-  {% if board %}
-  <h2 style="font-size:17px;margin:20px 0 8px;">点位总表（按提到的博主数排序）</h2>
-  {% for row in board %}
-  <div style="background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
-    <div style="font-size:15px;"><b>{% if dashboard_url %}<a href="{{ dashboard_url }}#{{ row.ticker }}" style="color:inherit;">{{ row.ticker }}</a>{% else %}{{ row.ticker }}{% endif %}</b>
-      {% if row.price %}<span style="color:#6b6a66;"> 现价 {{ '%.2f'|format(row.price) }}</span>{% endif %}
-      <span style="color:#6b6a66;"> · {{ row.authors|length }} 位博主 · 偏{{ {'bullish':'多','bearish':'空'}.get(row.bias, '中性') }}</span>
-    </div>
-    <table cellpadding="4" cellspacing="0" style="width:100%;font-size:13px;margin-top:6px;border-collapse:collapse;">
-      {% for c in row.clusters|reverse %}
-      <tr style="border-top:1px solid #f0efeb;">
-        <td style="width:90px;"><b>{{ c.price|px }}</b>{% if c.high > c.low %}<br><span style="color:#8a8984;">{{ c.low|px }}–{{ c.high|px }}</span>{% endif %}</td>
-        <td style="width:110px;">{{ c.types|map('ltype')|join('/') }}{% if c.consensus > 1 %} <b style="color:#b36b00;">×{{ c.consensus }}</b>{% endif %}</td>
-        <td>{% for l in c.calls %}<div><b>{{ l.author }}</b>：{{ l.note }}</div>{% endfor %}</td>
+  <tr><td style="padding:22px 4px 8px;font-size:17px;font-weight:800;">接近现价的点位 <span style="font-size:13px;font-weight:400;color:{{ C.ink2 }};">（±1% 以内）</span></td></tr>
+  <tr><td style="background:{{ C.card }};border-radius:14px;padding:6px 16px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;">
+      {% for c in near %}
+      <tr>
+        <td style="padding:9px 0;border-bottom:1px solid {{ C.line }};font-weight:800;width:64px;">{{ c.ticker }}</td>
+        <td style="padding:9px 0;border-bottom:1px solid {{ C.line }};"><b style="color:{{ C.res if c.distance_pct >= 0 else C.sup }};">{{ c.price|px }}</b>
+          <span style="color:{{ C.muted }};font-size:12px;">现价 {{ c.last_price|px }} · {{ '%+.2f'|format(c.distance_pct) }}%</span></td>
+        <td style="padding:9px 0;border-bottom:1px solid {{ C.line }};text-align:right;">{{ c.types|map('ltype')|join('/') }}{% if c.consensus > 1 %} {{ pill('×' ~ c.consensus ~ ' 共识', C.new, C.newbg) }}{% endif %}</td>
       </tr>
       {% endfor %}
     </table>
-  </div>
+  </td></tr>
+  {% endif %}
+
+  {# ---------- Full board: every ticker, every level ---------- #}
+  {% if board %}
+  <tr><td style="padding:22px 4px 8px;font-size:17px;font-weight:800;">全部点位 <span style="font-size:13px;font-weight:400;color:{{ C.ink2 }};">（{{ board|length }} 个标的，有变化的排在前面）</span></td></tr>
+  {% for row in board %}
+  <tr><td style="background:{{ C.card }};border-radius:14px;padding:14px 16px 8px;{% if row.changed %}border:2px solid {{ C.gold }};{% endif %}">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="font-size:18px;font-weight:800;">
+        {% if dashboard_url %}<a href="{{ dashboard_url }}#{{ row.ticker }}" style="color:{{ C.ink }};text-decoration:none;">{{ row.ticker }}</a>{% else %}{{ row.ticker }}{% endif %}
+        {% if row.price %}<span style="font-size:14px;font-weight:600;color:{{ C.ink2 }};"> {{ row.price|px }}</span>{% endif %}
+      </td>
+      <td style="text-align:right;font-size:12px;color:{{ C.ink2 }};white-space:nowrap;">
+        {% if row.changed %}{{ pill('有变化', C.new, C.newbg) }} {% endif %}
+        {{ pill({'bullish':'偏多','bearish':'偏空'}.get(row.bias, '中性'), C.sup if row.bias == 'bullish' else C.res if row.bias == 'bearish' else C.ink2, C.supbg if row.bias == 'bullish' else C.resbg if row.bias == 'bearish' else C.bg) }}
+        {{ row.authors|length }} 位博主
+      </td>
+    </tr></table>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;margin-top:8px;">
+      {% set ns = namespace(shown=(row.price is none)) %}
+      {% for c in row.clusters|sort(attribute='price', reverse=True) %}
+        {% if not ns.shown and c.price < row.price %}
+        <tr><td colspan="3" style="padding:6px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="border-top:2px dashed {{ C.muted }};font-size:0;">&nbsp;</td>
+          <td style="width:1%;white-space:nowrap;padding:0 8px;font-size:12px;font-weight:700;color:{{ C.ink }};">现价 {{ row.price|px }}</td>
+          <td style="border-top:2px dashed {{ C.muted }};font-size:0;">&nbsp;</td></tr></table></td></tr>
+        {% set ns.shown = true %}
+        {% endif %}
+        {% set side_color = C.res if c.side == 'above' else C.sup if c.side == 'below' else C.ink %}
+        {% set side_bg = C.resbg if c.side == 'above' else C.supbg if c.side == 'below' else C.bg %}
+        <tr style="{% if c.changed %}background:{{ C.newbg }};{% endif %}">
+          <td style="padding:8px 6px;border-top:1px solid {{ C.line }};width:78px;vertical-align:top;border-left:3px solid {{ side_color }};">
+            <div style="font-weight:800;color:{{ side_color }};font-size:15px;">{{ c.price|px }}</div>
+            {% if c.high > c.low %}<div style="font-size:11px;color:{{ C.muted }};">{{ c.low|px }}–{{ c.high|px }}</div>{% endif %}
+            {% if c.distance_pct is not none %}<div style="font-size:11px;color:{{ C.muted }};">{{ '%+.2f'|format(c.distance_pct) }}%</div>{% endif %}
+          </td>
+          <td style="padding:8px 6px;border-top:1px solid {{ C.line }};width:84px;vertical-align:top;">
+            {% for t in c.types %}{{ pill(t|ltype, side_color, side_bg) }} {% endfor %}
+            {% if c.consensus > 1 %}<div style="margin-top:4px;">{{ pill('×' ~ c.consensus ~ ' 共识', C.new, C.newbg) }}</div>{% endif %}
+          </td>
+          <td style="padding:8px 6px;border-top:1px solid {{ C.line }};vertical-align:top;line-height:1.55;">
+            {% for l in c.calls %}
+            <div style="margin-bottom:4px;">{{ change_badge(l) }}
+              {% if l.change == 'moved' %}<span style="color:{{ C.gone }};text-decoration:line-through;font-size:12px;">{{ l.old_price|px }}</span> {% endif %}
+              <b>{{ l.author }}</b> <span style="color:{{ C.muted }};font-size:12px;">{{ l.kind|kind }}</span>
+              <span style="color:{{ C.ink2 }};">{{ l.note }}</span></div>
+            {% endfor %}
+          </td>
+        </tr>
+      {% endfor %}
+      {% if not ns.shown %}
+        <tr><td colspan="3" style="padding:6px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td style="border-top:2px dashed {{ C.muted }};font-size:0;">&nbsp;</td>
+          <td style="width:1%;white-space:nowrap;padding:0 8px;font-size:12px;font-weight:700;">现价 {{ row.price|px }}</td>
+          <td style="border-top:2px dashed {{ C.muted }};font-size:0;">&nbsp;</td></tr></table></td></tr>
+      {% endif %}
+    </table>
+  </td></tr>
+  <tr><td style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>
   {% endfor %}
   {% endif %}
 
+  {# ---------- Macro: each author's own view ---------- #}
   {% if macro %}
-  <h2 style="font-size:17px;margin:20px 0 8px;">各博主原始观点</h2>
+  <tr><td style="padding:22px 4px 8px;font-size:17px;font-weight:800;">各博主原始观点</td></tr>
   {% for m in macro %}
-  <div style="background:#fff;border-radius:10px;padding:12px 16px;margin-bottom:10px;">
-    <div style="font-size:14px;"><b>{{ m.author }}</b> · <a href="{{ m.url }}" style="color:#1f5fbf;">{{ m.title or '' }}</a>
-      <span style="color:#6b6a66;"> · {{ local(m.published_at) }}{% if m.risk_level %} · 风险{{ m.risk_level|risk }}{% endif %}</span></div>
-    <div style="white-space:pre-line;line-height:1.6;font-size:14px;margin-top:6px;">{{ m.macro_summary }}</div>
-  </div>
+  <tr><td style="background:{{ C.card }};border-radius:14px;padding:14px 18px;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="font-size:15px;font-weight:800;">{{ m.author }} <span style="font-size:12px;font-weight:400;color:{{ C.muted }};">{{ m.kind|kind }} · {{ local(m.published_at) }}</span></td>
+      <td style="text-align:right;">{% if m.risk_level %}{{ pill('风险' ~ (m.risk_level|risk), C.res if m.risk_level in ('elevated', 'high') else C.ink2, C.resbg if m.risk_level in ('elevated', 'high') else C.bg) }}{% endif %}</td>
+    </tr></table>
+    {% if m.title %}<div style="margin-top:4px;font-size:14px;">{% if m.url %}<a href="{{ m.url }}" style="color:{{ C.sup }};">{{ m.title }}</a>{% else %}{{ m.title }}{% endif %}</div>{% endif %}
+    <div style="margin-top:8px;font-size:14px;line-height:1.7;color:{{ C.ink2 }};white-space:pre-line;">{{ m.macro_summary }}</div>
+    {% set themes = m.macro_themes|fromjson %}
+    {% if themes %}<div style="margin-top:8px;">{% for t in themes %}{{ pill(t.topic|topic, C.ink2, C.bg) }} {% endfor %}</div>{% endif %}
+  </td></tr>
+  <tr><td style="height:10px;line-height:10px;font-size:0;">&nbsp;</td></tr>
   {% endfor %}
   {% endif %}
 
   {% if not board and not macro %}
-  <p style="color:#6b6a66;">这段时间内没有新内容。</p>
+  <tr><td style="padding:22px 4px;color:{{ C.ink2 }};font-size:14px;">这段时间内没有新内容。</td></tr>
   {% endif %}
 
-  <p style="font-size:12px;color:#8a8984;margin-top:24px;">以上内容由程序汇总自你关注的博主观点，不构成投资建议。点位由 AI 从视频字幕 / 帖子中提取，可能有误，请以原文为准。</p>
-</div>
-</body></html>
+  {# ---------- Footer ---------- #}
+  <tr><td style="padding:18px 8px 0;font-size:12px;line-height:1.6;color:{{ C.muted }};text-align:center;">
+    {% if board %}{{ pill('支撑', C.sup, C.supbg) }} 现价下方 · {{ pill('阻力', C.res, C.resbg) }} 现价上方 · {{ pill('新增', C.new, C.newbg) }} {{ pill('调整', C.moved, C.movedbg) }} 与上一封相比<br>{% endif %}
+    内容由程序汇总自你关注的博主，点位由 AI 从字幕 / 帖子中提取，可能有误，请以原文为准。不构成投资建议。
+  </td></tr>
+
+</table>
+</td></tr>
+</table>
+</body>
+</html>
