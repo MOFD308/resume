@@ -62,9 +62,10 @@ def create_app(cfg: Config, db: DB, on_new_item=None) -> FastAPI:
 
     @app.get("/api/sources", dependencies=[Depends(auth)])
     def sources():
-        stats = {r["author"]: r for r in aggregate.source_stats(db)}
+        stats = {(r["author"], r["kind"]): r for r in aggregate.source_stats(db)}
         return [{"name": s.name, "kind": s.kind, "category": s.category,
-                 **{k: stats.get(s.name, {}).get(k) for k in ("n", "levels", "macro", "last", "top_tickers")}}
+                 **{k: stats.get((s.name, s.kind), {}).get(k)
+                    for k in ("n", "levels", "macro", "last", "top_tickers")}}
                 for s in cfg.sources]
 
     @app.post("/ingest/android")

@@ -107,20 +107,21 @@ def _bias(levels: list[dict]) -> str:
 
 
 def source_stats(db: DB, days: int = 7) -> list[dict]:
-    """Activity and focus per author over the last `days` days."""
+    """Activity and focus per author and platform over the last `days` days."""
     since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     items = db.query("SELECT author, kind, COUNT(*) n, SUM(is_macro) macro, MAX(published_at) last "
                      "FROM items WHERE published_at >= ? AND status='done' GROUP BY author, kind", (since,))
-    levels = db.query("SELECT author, ticker, COUNT(*) n FROM levels WHERE published_at >= ? "
-                      "GROUP BY author, ticker ORDER BY n DESC", (since,))
-    top: dict[str, list[str]] = defaultdict(list)
-    counts: dict[str, int] = defaultdict(int)
+    levels = db.query("SELECT author, kind, ticker, COUNT(*) n FROM levels WHERE published_at >= ? "
+                      "GROUP BY author, kind, ticker ORDER BY n DESC", (since,))
+    top: dict[tuple, list[str]] = defaultdict(list)
+    counts: dict[tuple, int] = defaultdict(int)
     for r in levels:
-        counts[r["author"]] += r["n"]
-        if len(top[r["author"]]) < 5:
-            top[r["author"]].append(r["ticker"])
-    return [{**r, "levels": counts.get(r["author"], 0), "top_tickers": top.get(r["author"], [])}
-            for r in items]
+        key = (r["author"], r["kind"])
+        counts[key] += r["n"]
+        if len(top[key]) < 5:
+            top[key].append(r["ticker"])
+    return [{**r, "levels": counts.get((r["author"], r["kind"]), 0),
+             "top_tickers": top.get((r["author"], r["kind"]), [])} for r in items]
 
 
 def macro_items(db: DB, since: datetime) -> list[dict]:

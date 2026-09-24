@@ -1,0 +1,59 @@
+# 你的实际配置。密钥类信息放在 .env（见 .env.example），不要写在这里。
+# 同一个博主在不同平台用同一个 name：看板会把他算作一位博主，不会自己跟自己“共识”。
+
+timezone: America/New_York     # 所有定时任务按美东时间
+database: data/market_digest.db
+dashboard_url: http://localhost:8000   # 部署后改成你的看板地址，邮件里的链接会用它
+
+llm:
+  model: claude-opus-5
+  effort: medium
+
+poll_minutes: 5
+
+level_ttl_days:
+  intraday: 1
+  swing: 10
+  long_term: 60
+  unspecified: 5
+
+cluster_tolerance_pct: 0.6
+
+schedule:                       # 美东时间。只写时间 = 周一到周五；可加星期，如 "sun 18:00"、"mon-sun 07:30"
+  premarket: "08:45"
+  midday: "12:30"
+  close: "16:30"
+  macro_daily: "mon-sun 19:00"  # 美东 19:00 = 北京时间次日 07:00（夏令时）
+  weekly_macro: "sun 18:00"
+macro_alert_immediately: false
+
+youtube:
+  - name: Shanghao Jin
+    channel_id: UCTAJ0JnR9oYvILu-mtNcufQ    # @shanghaojin
+    category: both
+  - name: MrBoKong
+    channel_id: UCNo5-yY8o53AFHS4AladYIg    # @MrBoKong
+    category: both
+
+websites: []
+  # - name: 博主名
+  #   url: https://...
+  #   category: levels
+
+x:
+  - name: Shanghao Jin
+    handle: ShanghaoJin
+    category: both
+  - name: MrBoKong
+    handle: mrbokong
+    category: both
+
+discord: []
+  # - name: 博主名
+  #   match: ["服务器名", "博主昵称"]
+  #   category: both
+
+email_inbox:
+  host: imap.gmail.com
+  folder: INBOX
+  x_senders: ["notify@x.com", "info@x.com", "notify@twitter.com"]
