@@ -15,3 +15,10 @@ discord.py>=2.5
 yt-dlp>=2025.1
 faster-whisper>=1.0
 tzdata>=2024.1
+# Windows only: read Discord desktop notifications
+winrt-runtime>=3.0; sys_platform == "win32"
+winrt-Windows.Foundation>=3.0; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=3.0; sys_platform == "win32"
+winrt-Windows.ApplicationModel>=3.0; sys_platform == "win32"
+winrt-Windows.UI.Notifications>=3.0; sys_platform == "win32"
+winrt-Windows.UI.Notifications.Management>=3.0; sys_platform == "win32"

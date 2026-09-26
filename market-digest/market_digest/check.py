@@ -101,6 +101,25 @@ def run_checks(cfg: Config, send_test_email: bool = True) -> bool:
             else:
                 ok &= _line(FAIL, f"YouTube {src.name}", msg[:150])
 
+    # Discord via Windows notifications
+    from .sources import windows_notifications
+    discord_srcs = [s for s in cfg.by_kind("discord") if s.match]
+    if not discord_srcs:
+        _line(SKIP, "Discord", "没有配置 Discord 博主")
+    elif not windows_notifications.available():
+        _line(SKIP, "Discord 电脑通知", "只在 Windows 上可用（或组件未安装，重新运行 install.bat）")
+    else:
+        import asyncio
+        try:
+            status = asyncio.run(windows_notifications.request_access())
+        except Exception as e:
+            status = f"error: {e}"
+        if status == "allowed":
+            _line(OK, "Discord 电脑通知", "已获准读取 Windows 通知。请确认 Discord 电脑版已登录、该频道通知设为「所有消息」")
+        else:
+            ok &= _line(FAIL, "Discord 电脑通知",
+                        f"未获准读取通知（{status}）。到 设置 → 隐私和安全性 → 通知，打开「允许应用访问通知」后重试")
+
     try:
         import faster_whisper  # noqa: F401
         import yt_dlp  # noqa: F401

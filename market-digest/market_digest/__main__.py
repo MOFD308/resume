@@ -32,7 +32,7 @@ def run(cfg, db, llm, host: str, port: int) -> None:
 
     from . import newsletter, pipeline
     from .dashboard import create_app
-    from .sources import discord
+    from .sources import discord, windows_notifications
 
     def process_async():
         threading.Thread(target=pipeline.process_pending, args=(cfg, db, llm), daemon=True).start()
@@ -52,6 +52,7 @@ def run(cfg, db, llm, host: str, port: int) -> None:
     log.info("scheduled: %s", ", ".join(f"{j.id} → {j.next_run_time:%a %H:%M}" for j in sched.get_jobs()
                                          if j.next_run_time))
 
+    windows_notifications.start(db, cfg.by_kind("discord"), process_async)
     threading.Thread(target=discord.run_bot, args=(db, cfg.by_kind("discord"), process_async),
                      daemon=True, name="discord").start()
 

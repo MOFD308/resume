@@ -56,7 +56,12 @@ x:
     handle: mrbokong
     category: both
 
-discord: []
+discord:
+  # 推荐：Windows 电脑上开着 Discord 电脑版，程序直接读取 Windows 右下角的 Discord 通知。
+  #   1) Discord 里把博主那个频道的通知设为「所有消息」
+  #   2) match：通知标题/内容里必须同时出现的关键词，一般填服务器名 + 博主昵称
+  # 其他方式（安卓手机转发、手动转发到自己的服务器）见 README「Discord 设置」。
+  []
   # - name: 博主名
   #   match: ["服务器名", "博主昵称"]
   #   category: both
