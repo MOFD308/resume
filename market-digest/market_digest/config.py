@@ -7,10 +7,15 @@ import yaml
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def _load_dotenv(path: Path) -> None:
-    if not path.exists():
-        return
-    for line in path.read_text(encoding="utf-8-sig").splitlines():
+def _load_dotenv(path: Path) -> Path | None:
+    """Load KEY=value lines. Also accepts the names Windows users often end up with
+    (".env.txt", "env.txt") and files saved in a non-UTF-8 encoding (only the values matter,
+    and those are ASCII)."""
+    candidates = [path] + [path.with_name(n) for n in (".env.txt", "env.txt", "env")]
+    found = next((p for p in candidates if p.is_file()), None)
+    if found is None:
+        return None
+    for line in found.read_bytes().decode("utf-8-sig", errors="replace").splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
@@ -19,6 +24,7 @@ def _load_dotenv(path: Path) -> None:
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]  # tolerate KEY="value"
         os.environ.setdefault(key.strip(), value)
+    return found
 
 
 @dataclass

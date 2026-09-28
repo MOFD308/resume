@@ -53,6 +53,8 @@ if errorlevel 1 (
 )
 
 rem --- 4. Secrets file ---------------------------------------------------
+if exist ".env.txt" ren ".env.txt" ".env"
+if exist "env.txt" if not exist ".env" ren "env.txt" ".env"
 if not exist ".env" (
   copy ".env.example" ".env" >nul
   echo [4/4] 已创建 .env，马上用记事本打开，请填入密钥后保存并关闭记事本。
