@@ -1,7 +1,12 @@
-"""Scheduled newsletters and optional instant macro alerts.
+"""The emails.
 
-Level newsletters (premarket / midday / close) cover price levels; macro newsletters (daily /
-weekly) synthesise the macro views from every source into one read.
+- levels:     sent whenever a level is added or moved; the full board with the changes highlighted.
+- premarket / close: before the open and after the close; macro digest plus the full board.
+- weekly:     Sunday macro digest.
+- macro alert (optional, off by default): one email per macro video/post.
+
+Every email that carries levels is compared with the board as of the previous one, so "changed"
+always means "since the last email you got with levels in it".
 """
 import json
 import logging
@@ -19,16 +24,19 @@ from .mailer import send_email
 
 log = logging.getLogger(__name__)
 
-TITLES = {"premarket": "盘前点位", "midday": "盘中更新", "close": "收盘复盘",
-          "macro_daily": "每日宏观总结", "weekly": "宏观周报"}
-LEVEL_KINDS = ("premarket", "midday", "close")
-MACRO_KINDS = ("macro_daily", "weekly")
+TITLES = {"levels": "点位更新", "premarket": "盘前简报", "close": "盘后简报", "weekly": "宏观周报"}
+LEVEL_KINDS = ("levels", "premarket", "close")    # carry the full board
+MACRO_KINDS = ("premarket", "close", "weekly")    # carry the macro digest
+MACRO_SENT_KEY = "newsletter:macro:last_sent"
 
-MACRO_INSTRUCTIONS = """This is a macro digest. In `overview`, organise the views by theme (e.g. rates \
-and the Fed, inflation and jobs, geopolitics and war, fiscal/liquidity, earnings) with a short \
-paragraph per theme, naming which author holds which view, then end with the overall risk picture. \
-`focus` lists upcoming events or data the authors say to watch and key risks; `disagreements` lists \
-where the authors disagree."""
+MACRO_INSTRUCTIONS = """In `overview`, first organise the macro views by theme (e.g. rates and the Fed, \
+inflation and jobs, geopolitics and war, fiscal/liquidity, earnings) with a short paragraph per theme, \
+naming which author holds which view, and give the overall risk picture. If level data is present, \
+end with a short paragraph on what changed in the levels since the last email and which levels are \
+closest to the current price. `focus` lists upcoming events, key risks and key levels to watch; \
+`disagreements` lists where the authors disagree."""
+LEVEL_INSTRUCTIONS = """Lead the overview with what changed since the last email (new, moved and \
+removed levels), then the levels closest to the current price."""
 LEVEL_TYPES = {"support": "支撑", "resistance": "阻力", "target": "目标", "stop": "止损",
                "entry": "入场", "pivot": "多空分界", "other": "其他"}
 RISK = {"low": "低", "moderate": "中", "elevated": "偏高", "high": "高"}
@@ -103,70 +111,99 @@ def _level_changes(db: DB, board: list[dict], active: list[dict]) -> dict:
     return {"first_email": False, "changes_list": changes_list, "removed": removed}
 
 
-def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str, list | None]:
-    """Render one newsletter. Returns (subject, html, level snapshot to store once it is sent)."""
-    now = datetime.now(timezone.utc)
-    board, near, macro, stats, snap = [], [], [], [], None
-    extra = {"first_email": False, "changes_list": [], "removed": []}
-    if kind in LEVEL_KINDS:
-        ttl = cfg.get("level_ttl_days")
-        active = aggregate.active_levels(db, ttl)
-        board = aggregate.build_board(db, prices.get_prices(sorted({l["ticker"] for l in active})), ttl,
-                                      cfg.get("cluster_tolerance_pct", 0.6))
-        extra = _level_changes(db, board, active)
-        near = _near(board)[:20]
-        snap = aggregate.snapshot(active)
-        moved = sum(1 for l in extra["changes_list"] if l["change"] == "moved")
-        stats = [("标的", len(board), None), ("点位", len(active), None),
-                 ("新增", len(extra["changes_list"]) - moved, "#b7791f"), ("调整", moved, "#6b46c1"),
-                 ("移除", len(extra["removed"]), "#8a92a0")]
-        data = {
-            "newsletter": TITLES[kind],
+def _level_part(cfg: Config, db: DB) -> dict:
+    ttl = cfg.get("level_ttl_days")
+    active = aggregate.active_levels(db, ttl)
+    board = aggregate.build_board(db, prices.get_prices(sorted({l["ticker"] for l in active})), ttl,
+                                  cfg.get("cluster_tolerance_pct", 0.6))
+    changes = _level_changes(db, board, active)
+    near = _near(board)[:20]
+    moved = sum(1 for l in changes["changes_list"] if l["change"] == "moved")
+    return {
+        "active": active, "board": board, "near": near, "snapshot": aggregate.snapshot(active),
+        **changes,
+        "stats": [("标的", len(board), None), ("点位", len(active), None),
+                  ("新增", len(changes["changes_list"]) - moved, "#b7791f"), ("调整", moved, "#6b46c1"),
+                  ("移除", len(changes["removed"]), "#8a92a0")],
+        "data": {
             "board": _compact_board(board),
             "changes_since_last_email": [
                 {"ticker": l["ticker"], "author": l["author"], "type": l["level_type"], "change": l["change"],
                  "price": l["price"], "old_price": l["old_price"], "note": l["note"]}
-                for l in extra["changes_list"]] + [
+                for l in changes["changes_list"]] + [
                 {"ticker": l["ticker"], "author": l["author"], "type": l["level_type"], "change": "removed",
-                 "price": l["price"]} for l in extra["removed"]],
+                 "price": l["price"]} for l in changes["removed"]],
             "levels_near_price": [{"ticker": c["ticker"], "last_price": c["last_price"], "level": c["price"],
                                    "types": c["types"], "authors": c["authors"],
                                    "distance_pct": c["distance_pct"]} for c in near],
-        }
-        instructions = ("Lead the overview with what changed since the last email (new, moved and "
-                        "removed levels), then the levels closest to the current price.")
-    else:
-        since = (now - timedelta(days=7) if kind == "weekly"
-                 else _since(db, "newsletter:macro_daily:last_sent", timedelta(hours=24)))
-        macro = aggregate.macro_items(db, since)
-        risks = [m["risk_level"] for m in macro if m["risk_level"]]
-        stats = [("宏观内容", len(macro), None), ("博主", len({m["author"] for m in macro}), None),
-                 ("风险偏高/高", sum(r in ("elevated", "high") for r in risks), "#d64545")] if macro else []
-        data = {
-            "newsletter": TITLES[kind],
+        },
+    }
+
+
+def _macro_part(db: DB, kind: str) -> dict:
+    now = datetime.now(timezone.utc)
+    since = now - timedelta(days=7) if kind == "weekly" else _since(db, MACRO_SENT_KEY, timedelta(hours=24))
+    macro = aggregate.macro_items(db, since)
+    risks = [m["risk_level"] for m in macro if m["risk_level"]]
+    return {
+        "macro": macro,
+        "stats": [("宏观内容", len(macro), None),
+                  ("风险偏高", sum(r in ("elevated", "high") for r in risks), "#d64545")],
+        "data": {
             "period_since": since.isoformat(),
             "macro": [{"author": m["author"], "source": m["kind"], "title": m["title"],
                        "published": m["published_at"], "risk": m["risk_level"],
                        "summary": m["macro_summary"], "themes": json.loads(m["macro_themes"] or "[]")}
                       for m in macro],
-        }
-        instructions = MACRO_INSTRUCTIONS
+        },
+    }
 
-    try:
-        brief = llm.brief(kind, data, instructions) if (board or macro) else None
-    except Exception:
-        log.exception("brief generation failed; sending without it")
+
+def _change_headline(changes_list: list[dict]) -> str:
+    """Subject line for a change alert, written without an LLM call."""
+    parts = []
+    for l in changes_list[:3]:
+        t = LEVEL_TYPES.get(l["level_type"], l["level_type"])
+        px = env.filters["px"]
+        parts.append(f'{l["ticker"]} {t} {px(l["old_price"])}→{px(l["price"])}' if l["change"] == "moved"
+                     else f'{l["ticker"]} 新增{t} {px(l["price"])}')
+    more = f" 等 {len(changes_list)} 处" if len(changes_list) > 3 else ""
+    return "；".join(parts) + more
+
+
+def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str, list | None]:
+    """Render one email. Returns (subject, html, level snapshot to store once it is sent)."""
+    now = datetime.now(timezone.utc)
+    lv = _level_part(cfg, db) if kind in LEVEL_KINDS else None
+    mc = _macro_part(db, kind) if kind in MACRO_KINDS else None
+    board = lv["board"] if lv else []
+    macro = mc["macro"] if mc else []
+
+    if kind == "levels":
+        # Change alerts go out often; build them without an LLM call so they are instant and free.
         brief = None
+        headline = _change_headline(lv["changes_list"]) if lv["changes_list"] else "点位看板"
+    else:
+        data = {"newsletter": TITLES[kind], **(mc["data"] if mc else {}), **(lv["data"] if lv else {})}
+        instructions = MACRO_INSTRUCTIONS if mc else LEVEL_INSTRUCTIONS
+        try:
+            brief = llm.brief(kind, data, instructions) if (board or macro) else None
+        except Exception:
+            log.exception("brief generation failed; sending without it")
+            brief = None
+        headline = brief.headline if brief else ("暂无新内容" if not (board or macro) else now.strftime("%Y-%m-%d"))
 
+    stats = (lv["stats"] if lv else []) + (mc["stats"] if mc and macro else [])
+    extra = {k: lv[k] for k in ("first_email", "changes_list", "removed")} if lv else \
+        {"first_email": False, "changes_list": [], "removed": []}
     html = env.get_template("newsletter.html").render(
-        title=TITLES[kind], kind=kind, brief=brief, board=board, near=near, macro=macro, stats=stats,
+        title=TITLES[kind], kind=kind, headline=headline, brief=brief, board=board,
+        near=lv["near"] if lv else [], macro=macro, stats=stats,
         dashboard_url=cfg.get("dashboard_url"), **extra,
         date=now.astimezone(ZoneInfo(cfg.get("timezone", "America/New_York"))).strftime("%Y-%m-%d"),
         local=lambda iso: _local(cfg, iso),
     )
-    fallback = "暂无新内容" if not (board or macro) else now.strftime("%Y-%m-%d")
-    subject = f"【{TITLES[kind]}】" + (brief.headline if brief else fallback)
-    return subject, html, snap
+    return f"【{TITLES[kind]}】{headline}", html, (lv["snapshot"] if lv else None)
 
 
 def send(cfg: Config, db: DB, llm: LLM, kind: str) -> None:
@@ -174,8 +211,26 @@ def send(cfg: Config, db: DB, llm: LLM, kind: str) -> None:
     send_email(subject, html)
     if kind in LEVEL_KINDS:
         db.set_kv(SNAPSHOT_KEY, json.dumps(snap, ensure_ascii=False))
-    elif kind == "macro_daily":
-        db.set_kv("newsletter:macro_daily:last_sent", utcnow())
+    if kind in ("premarket", "close"):
+        db.set_kv(MACRO_SENT_KEY, utcnow())
+
+
+def send_if_levels_changed(cfg: Config, db: DB, llm: LLM) -> bool:
+    """Send a "levels" email when a level was added or moved since the last email with levels.
+
+    Levels that merely expired don't trigger an email on their own; they show up as removed in the
+    next one. Returns True if an email was sent.
+    """
+    active = aggregate.active_levels(db, cfg.get("level_ttl_days"))
+    if not active:
+        return False
+    raw = db.get_kv(SNAPSHOT_KEY)
+    if raw is not None:
+        changes, _ = aggregate.diff_levels(json.loads(raw), active)
+        if not changes:
+            return False
+    send(cfg, db, llm, "levels")
+    return True
 
 
 def send_macro_alert(cfg: Config, db: DB, item_id: str) -> None:

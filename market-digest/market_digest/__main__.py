@@ -1,7 +1,7 @@
 """
 python -m market_digest run                  # everything: polling, Discord bot, schedules, dashboard
 python -m market_digest poll                 # poll all sources once and extract levels
-python -m market_digest send premarket       # send one newsletter now (premarket|midday|close|macro_daily|weekly)
+python -m market_digest send premarket       # send one email now (levels|premarket|close|weekly)
 python -m market_digest preview premarket    # write the newsletter HTML to data/ instead of emailing
 python -m market_digest resolve-youtube @handle
 python -m market_digest check               # verify keys and sources, send a test email
@@ -43,8 +43,10 @@ def run(cfg, db, llm, host: str, port: int) -> None:
                   next_run_time=datetime.now(sched.timezone))
     sched.add_job(pipeline.transcribe_videos, "interval", minutes=3, args=(cfg, db, llm),
                   id="transcribe", max_instances=1, coalesce=True)
-    for kind in ("premarket", "midday", "close", "macro_daily", "weekly"):
-        spec = cfg.get("schedule", {}).get("weekly_macro" if kind == "weekly" else kind)
+    sched.add_job(newsletter.send_if_levels_changed, "interval", args=(cfg, db, llm), id="levels",
+                  minutes=cfg.get("level_alert_minutes", 5), max_instances=1, coalesce=True)
+    for kind, key in (("premarket", "premarket"), ("close", "close"), ("weekly", "weekly_macro")):
+        spec = cfg.get("schedule", {}).get(key)
         if spec:
             sched.add_job(newsletter.send, "cron", args=(cfg, db, llm, kind), id=kind,
                           misfire_grace_time=1800, **_parse_schedule(spec))
@@ -69,7 +71,7 @@ def main() -> None:
     sub.add_parser("poll")
     for name in ("send", "preview"):
         p = sub.add_parser(name)
-        p.add_argument("kind", choices=["premarket", "midday", "close", "macro_daily", "weekly"])
+        p.add_argument("kind", choices=["levels", "premarket", "close", "weekly"])
     p_check = sub.add_parser("check")
     p_check.add_argument("--no-email", action="store_true", help="don't send the test email")
     p_yt = sub.add_parser("resolve-youtube")

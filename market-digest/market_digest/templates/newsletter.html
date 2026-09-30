@@ -21,7 +21,7 @@
 <title>{{ title }}</title>
 </head>
 <body style="margin:0;padding:0;background:{{ C.bg }};">
-<div style="display:none;max-height:0;overflow:hidden;">{{ brief.headline if brief else title }}</div>
+<div style="display:none;max-height:0;overflow:hidden;">{{ headline }}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{{ C.bg }};">
 <tr><td align="center" style="padding:24px 12px;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:680px;font-family:-apple-system,'PingFang SC','Hiragino Sans GB','Microsoft YaHei',Helvetica,Arial,sans-serif;color:{{ C.ink }};">
@@ -29,7 +29,7 @@
   {# ---------- Header ---------- #}
   <tr><td style="background:{{ C.navy }};border-radius:14px 14px 0 0;padding:22px 24px 20px;">
     <div style="font-size:12px;letter-spacing:1px;color:{{ C.gold }};font-weight:700;">{{ title }} · {{ date }}</div>
-    <div style="font-size:22px;line-height:1.35;color:#ffffff;font-weight:700;margin-top:6px;">{{ brief.headline if brief else title }}</div>
+    <div style="font-size:22px;line-height:1.35;color:#ffffff;font-weight:700;margin-top:6px;">{{ headline }}</div>
     {% if dashboard_url %}<div style="margin-top:14px;"><a href="{{ dashboard_url }}" style="display:inline-block;background:{{ C.gold }};color:{{ C.navy }};text-decoration:none;font-size:13px;font-weight:700;padding:7px 14px;border-radius:8px;">打开实时点位看板 →</a></div>{% endif %}
   </td></tr>
 
