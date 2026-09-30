@@ -15,10 +15,12 @@ _models: dict[str, object] = {}
 
 
 def _model(size: str):
+    # CPU by default: device="auto" picks an NVIDIA GPU when one exists, then fails if the
+    # CUDA/cuDNN libraries aren't installed, which is the usual case on a home PC.
     if size not in _models:
         from faster_whisper import WhisperModel
-        log.info("loading Whisper model %r (first time downloads it)", size)
-        _models[size] = WhisperModel(size, device="auto", compute_type="int8")
+        log.info("loading Whisper model %r (first time downloads it, ~500MB for small)", size)
+        _models[size] = WhisperModel(size, device="cpu", compute_type="int8")
     return _models[size]
 
 
