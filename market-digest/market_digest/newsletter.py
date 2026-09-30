@@ -144,7 +144,7 @@ def _level_part(cfg: Config, db: DB) -> dict:
 def _macro_part(cfg: Config, db: DB, kind: str) -> dict:
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=7) if kind == "weekly" else _since(db, MACRO_SENT_KEY, timedelta(hours=24))
-    macro = aggregate.macro_items(db, since, cfg.get("macro_sources", ["youtube", "x"]))
+    macro = aggregate.macro_items(db, since, cfg.get("macro_sources"))  # default: every source
     risks = [m["risk_level"] for m in macro if m["risk_level"]]
     return {
         "macro": macro,

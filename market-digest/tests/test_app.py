@@ -179,12 +179,12 @@ def test_terse_posts_are_read_with_the_authors_earlier_posts(db, cfg):
     assert "美债收益率要破 5% 了" in seen["x:c"] and "旧推文" not in seen["x:c"]
 
 
-def test_macro_digest_uses_only_youtube_and_x_and_shows_plain_reading(db, cfg, monkeypatch):
+def test_macro_digest_combines_every_source_and_shows_plain_reading(db, cfg, monkeypatch):
     monkeypatch.setattr(prices, "get_prices", lambda tickers: {})
     add(db, "x:m", "B", kind="x", ext=extraction([], macro="- 收益率要涨\n白话解读：作者认为长债利率还会上行（推测）", risk="high"))
-    add(db, "discord:m", "D", kind="discord", ext=extraction([], macro="- 群聊观点", risk="low"))
+    add(db, "discord:m", "D", kind="discord", ext=extraction([], macro="- 群里提到非农偏弱", risk="low"))
     llm = FakeLLM()
     _, html, _ = newsletter.build(cfg, db, llm, "premarket")
-    assert [m["author"] for m in llm.last_brief_data["macro"]] == ["B"]
-    assert "群聊观点" not in html
+    assert sorted(m["author"] for m in llm.last_brief_data["macro"]) == ["B", "D"]
+    assert "群里提到非农偏弱" in html
     assert "<b>白话解读：</b>作者认为长债利率还会上行（推测）" in html
