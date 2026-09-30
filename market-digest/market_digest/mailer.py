@@ -2,6 +2,7 @@ import logging
 import os
 import smtplib
 from email.message import EmailMessage
+from email.utils import formataddr
 
 log = logging.getLogger(__name__)
 
@@ -11,7 +12,8 @@ def send_email(subject: str, html: str, text: str = "") -> None:
     to = os.environ.get("NEWSLETTER_TO", sender)
     msg = EmailMessage()
     msg["Subject"] = subject
-    msg["From"] = sender
+    # A display name makes the digests easy to spot even though you send them to yourself.
+    msg["From"] = formataddr((os.environ.get("SENDER_NAME", "Market Digest 点位简报"), sender))
     msg["To"] = to
     msg.set_content(text or "请用支持 HTML 的邮件客户端查看。")
     msg.add_alternative(html, subtype="html")
