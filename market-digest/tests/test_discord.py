@@ -34,3 +34,11 @@ def test_messages_without_numbers_are_kept_for_macro_views(db, cfg):
         "package": "com.discord", "title": "Mike (Trading Room)", "text": "Fed sounds hawkish, careful here"})
     assert res["status"] == "stored"
     assert len(db.pending_items()) == 1
+
+
+def test_real_config_matches_the_pineapple_channel_notifications(db):
+    from market_digest.config import ROOT, load_config
+    srcs = load_config(ROOT / "config.yaml").by_kind("discord")
+    title = "菠萝头 (#菠萝专区-点位看这, 菠萝头美股社区)"
+    assert discord.match_source(srcs, title, "SPY 580 支撑").name == "菠萝头"
+    assert discord.match_source(srcs, "someone (#闲聊, 菠萝头美股社区)", "SPY 580") is None

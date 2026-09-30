@@ -61,10 +61,11 @@ discord:
   #   1) Discord 里把博主那个频道的通知设为「所有消息」
   #   2) match：通知标题/内容里必须同时出现的关键词，一般填服务器名 + 博主昵称
   # 其他方式（安卓手机转发、手动转发到自己的服务器）见 README「Discord 设置」。
-  []
-  # - name: 博主名
-  #   match: ["服务器名", "博主昵称"]
-  #   category: both
+  - name: 菠萝头
+    # 服务器「菠萝头美股社区」的「菠萝专区-点位看这」频道。
+    # 只取名字里有辨识度的部分，通知格式略有不同也能匹配。
+    match: ["菠萝头", "点位看这"]
+    category: both
 
 email_inbox:
   host: imap.gmail.com
