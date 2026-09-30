@@ -33,7 +33,7 @@ macro_alert_immediately: false  # true = 每条宏观视频/帖子一出来就�
 # ------------------------------------------------------------------
 youtube_transcribe:             # 视频没有字幕时：下载音频，用 Whisper 在本机做语音识别（免费）
   enabled: true
-  model: small                  # tiny / base / small / medium：越大越准越慢。small 转 30 分钟视频约 5–15 分钟（CPU）
+  model: turbo                  # large-v3-turbo：中文准确度接近最大的 large-v3，速度快得多。首次使用自动下载约 1.6GB。可选 small（快、较不准）/ medium / large-v3（最准、最慢）
   language: zh                  # 频道语言：优先下载这个语言的字幕，语音识别也按它识别
   # 如果日志里出现 “Sign in to confirm you're not a bot”，让程序借用浏览器里的 YouTube 登录（二选一）：
   cookies_from_browser: ""      # 填 firefox（最稳）/ edge / chrome；该浏览器需登录过 YouTube

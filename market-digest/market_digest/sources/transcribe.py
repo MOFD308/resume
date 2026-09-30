@@ -1,6 +1,7 @@
 """Speech-to-text for videos without subtitles: yt-dlp downloads the audio, faster-whisper
-transcribes it locally (free, no API). Runs on CPU; a 30-minute video takes roughly 5-15 minutes
-with the default "small" model, so it runs as its own background job, one video at a time.
+transcribes it locally (free, no API). Runs on CPU; a 30-minute video takes roughly 10-25 minutes
+with the default "turbo" (large-v3-turbo) model, so it runs as its own background job, one video
+at a time.
 """
 import logging
 import tempfile
@@ -19,7 +20,7 @@ def _model(size: str):
     # CUDA/cuDNN libraries aren't installed, which is the usual case on a home PC.
     if size not in _models:
         from faster_whisper import WhisperModel
-        log.info("loading Whisper model %r (first time downloads it, ~500MB for small)", size)
+        log.info("loading Whisper model %r (first time downloads it, ~1.6GB for turbo)", size)
         _models[size] = WhisperModel(size, device="cpu", compute_type="int8")
     return _models[size]
 
@@ -42,7 +43,7 @@ def download_audio(video_id: str, folder: Path, proxy: str | None = None,
         return Path(ydl.prepare_filename(info))
 
 
-def transcribe_file(path: Path, model_size: str = "small", language: str | None = None) -> str:
+def transcribe_file(path: Path, model_size: str = "turbo", language: str | None = None) -> str:
     segments, info = _model(model_size).transcribe(
         str(path), language=language, vad_filter=True, beam_size=5,
         # Nudges Chinese output to Simplified characters and keeps numbers as digits.
@@ -53,7 +54,7 @@ def transcribe_file(path: Path, model_size: str = "small", language: str | None 
     return "".join(seg.text for seg in segments).strip()
 
 
-def transcribe_pending(db: DB, model_size: str = "small", language: str | None = None,
+def transcribe_pending(db: DB, model_size: str = "turbo", language: str | None = None,
                        proxy: str | None = None, cookies_from_browser: str | None = None,
                        cookies_file: str | None = None) -> int:
     """Transcribe queued videos one by one. Returns how many became ready for extraction."""

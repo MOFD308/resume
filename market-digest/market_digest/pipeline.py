@@ -40,7 +40,7 @@ def transcribe_videos(cfg: Config, db: DB, llm: LLM) -> None:
     if not tc.get("enabled", True):
         return
     try:
-        n = transcribe.transcribe_pending(db, tc.get("model", "small"), tc.get("language"),
+        n = transcribe.transcribe_pending(db, tc.get("model", "turbo"), tc.get("language"),
                                           os.environ.get("YOUTUBE_PROXY"),
                                           cookies_from_browser=tc.get("cookies_from_browser"),
                                           cookies_file=tc.get("cookies_file"))
