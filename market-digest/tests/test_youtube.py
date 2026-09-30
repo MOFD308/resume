@@ -48,7 +48,7 @@ def test_transcription_fills_content(db, monkeypatch, tmp_path):
     youtube.poll(db, SRC, transcribe=True)
     db.mark_item("youtube:vid00000001", "transcribe")
     monkeypatch.setattr(transcribe, "download_audio", lambda vid, folder, *a, **k: Path(folder) / "a.m4a")
-    monkeypatch.setattr(transcribe, "transcribe_file", lambda path, size, lang: "纳指 20000 是阻力")
+    monkeypatch.setattr(transcribe, "transcribe_file", lambda path, size, lang, prompt=None: "纳指 20000 是阻力")
 
     assert transcribe.transcribe_pending(db) == 1
     item = db.pending_items()[0]
@@ -68,3 +68,11 @@ def test_transcription_gives_up_after_repeated_failures(db, monkeypatch):
     for _ in range(transcribe.MAX_ATTEMPTS):
         transcribe.transcribe_pending(db)
     assert db.query("SELECT status FROM items")[0]["status"] == "error"
+
+
+def test_whisper_prompt_primes_tickers_the_authors_use(db):
+    from .conftest import add, extraction, level
+    add(db, "youtube:x", "A", ext=extraction([level("SMCI", 40), level("SMCI", 45), level("SPY", 580)]))
+    prompt = transcribe.build_prompt(transcribe.recent_tickers(db))
+    assert "代码：SMCI SPY QQQ" in prompt  # most-mentioned first, then the defaults, no duplicates
+    assert prompt.count("SMCI") == 1 and len(prompt) < 200

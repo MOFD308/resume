@@ -21,6 +21,11 @@ levels that are not in the text. If there are none, return an empty list.
 "$NVDA" -> NVDA. Keep index, ETF and futures symbols distinct.
 - Transcripts are auto-generated and may mis-hear numbers ("five eighty five" = 585). Use the \
 instrument's context to read them correctly; if a number is ambiguous, lower the conviction.
+- Speakers often mix Chinese and English. Speech-to-text (content marked 语音识别转写) may write \
+English tickers and terms phonetically, split into letters or in Chinese: "Q Q Q"/"3Q" = QQQ, \
+"英伟达" = NVDA, "特斯拉" = TSLA, "纳指" = NDX/QQQ context, "标普" = SPX/SPY context, "费德"/"联储" = Fed. \
+Map them to the ticker only when the context makes it unambiguous; if you cannot tell which \
+instrument a level belongs to, leave that level out rather than guess.
 - level_type: support/resistance for key levels, target for price objectives, stop for \
 invalidation, entry for suggested entries, pivot for a line in the sand that flips bias.
 

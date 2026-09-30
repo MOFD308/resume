@@ -43,11 +43,33 @@ def download_audio(video_id: str, folder: Path, proxy: str | None = None,
         return Path(ydl.prepare_filename(info))
 
 
-def transcribe_file(path: Path, model_size: str = "turbo", language: str | None = None) -> str:
+# Whisper reads only the last ~224 tokens of a prompt (Chinese is ~1-2 tokens per character), so
+# keep this short; the ticker list goes last and is capped.
+BASE_PROMPT = "美股和宏观的普通话讲解，夹杂英文，代码保持英文，数字用阿拉伯数字：SPY 580 支撑，看 CPI 和 Fed rate cut。"
+DEFAULT_TICKERS = ["SPY", "QQQ", "SPX", "NDX", "ES", "NQ", "IWM", "TQQQ", "SQQQ", "NVDA", "TSLA",
+                   "AAPL", "MSFT", "META", "AMZN", "GOOGL", "AMD", "TLT", "VIX", "DXY"]
+
+
+def build_prompt(extra_tickers: list[str] | None = None) -> str:
+    """Whisper keeps English terms in English more reliably when the prompt is itself mixed
+    Chinese/English and lists the words to expect. Whisper only reads ~224 tokens of prompt."""
+    tickers = list(dict.fromkeys([*(extra_tickers or []), *DEFAULT_TICKERS]))[:25]
+    return BASE_PROMPT + "代码：" + " ".join(tickers)
+
+
+def recent_tickers(db: DB, limit: int = 25) -> list[str]:
+    """Tickers the tracked authors talked about recently: the words most worth priming."""
+    rows = db.query("SELECT ticker, COUNT(*) n FROM levels WHERE published_at >= datetime('now', '-60 days') "
+                    "GROUP BY ticker ORDER BY n DESC LIMIT ?", (limit,))
+    return [r["ticker"] for r in rows]
+
+
+def transcribe_file(path: Path, model_size: str = "turbo", language: str | None = None,
+                    prompt: str | None = None) -> str:
     segments, info = _model(model_size).transcribe(
         str(path), language=language, vad_filter=True, beam_size=5,
         # Nudges Chinese output to Simplified characters and keeps numbers as digits.
-        initial_prompt="以下是关于美股、期货和宏观经济的普通话讲解，使用简体中文，数字用阿拉伯数字，如 SPY 580、纳指 20000。",
+        initial_prompt=prompt or build_prompt(),
     )
     log.info("detected language %s (%.0f%%), %.0f min of audio",
              info.language, info.language_probability * 100, info.duration / 60)
@@ -69,7 +91,7 @@ def transcribe_pending(db: DB, model_size: str = "turbo", language: str | None =
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 audio = download_audio(video_id, Path(tmp), proxy, cookies_from_browser, cookies_file)
-                text = transcribe_file(audio, model_size, language)
+                text = transcribe_file(audio, model_size, language, build_prompt(recent_tickers(db)))
         except Exception as e:
             log.warning("transcription failed for %s: %s", video_id, " ".join(str(e).split())[:200])
             if attempts >= MAX_ATTEMPTS:
