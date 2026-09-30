@@ -147,6 +147,7 @@ def test_level_change_alert_only_when_levels_are_added_or_moved(db, cfg, monkeyp
             raise AssertionError("change alerts must not call the LLM")
 
     llm = NoBrief()
+    cfg.raw["level_alerts"] = {"min_interval_minutes": 0}                  # throttling is tested separately
     assert newsletter.send_if_levels_changed(cfg, db, llm) is False       # nothing on the board yet
     add(db, "youtube:1", "A", hours_ago=2, ext=extraction([level("SPY", 580), level("NVDA", 110)]))
     assert newsletter.send_if_levels_changed(cfg, db, llm) is True        # first board goes out
@@ -188,3 +189,35 @@ def test_macro_digest_combines_every_source_and_shows_plain_reading(db, cfg, mon
     assert sorted(m["author"] for m in llm.last_brief_data["macro"]) == ["B", "D"]
     assert "群里提到非农偏弱" in html
     assert "<b>白话解读：</b>作者认为长债利率还会上行（推测）" in html
+
+
+def test_level_alerts_respect_quiet_hours_and_min_interval(db, cfg, monkeypatch):
+    from datetime import datetime, timezone
+    from zoneinfo import ZoneInfo
+    sent = []
+    monkeypatch.setattr(newsletter, "send_email", lambda subject, html, text="": sent.append(subject))
+    monkeypatch.setattr(prices, "get_prices", lambda tickers: {})
+    cfg.raw["level_alerts"] = {"min_interval_minutes": 30, "quiet_hours": "20:00-08:45"}
+    ny = ZoneInfo("America/New_York")
+    at = lambda h, m=0: datetime(2026, 9, 30, h, m, tzinfo=ny)
+    llm = FakeLLM()
+
+    add(db, "x:1", "A", kind="x", ext=extraction([level("SPY", 580)]))
+    assert newsletter.send_if_levels_changed(cfg, db, llm, now=at(23)) is False      # quiet hours
+    assert newsletter.send_if_levels_changed(cfg, db, llm, now=at(6)) is False       # still quiet
+    assert newsletter.send_if_levels_changed(cfg, db, llm, now=at(10)) is True
+
+    add(db, "x:2", "A", kind="x", ext=extraction([level("QQQ", 500)]))
+    assert newsletter.send_if_levels_changed(cfg, db, llm, now=at(10, 10)) is False  # < 30 min
+    add(db, "x:3", "A", kind="x", ext=extraction([level("NVDA", 120)]))
+    assert newsletter.send_if_levels_changed(cfg, db, llm, now=at(10, 31)) is True   # both merged
+    assert "QQQ" in sent[-1] and "NVDA" in sent[-1]
+
+
+def test_quiet_hours_window_crossing_midnight():
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    ny = ZoneInfo("America/New_York")
+    q = lambda h, m=0: newsletter.in_quiet_hours("20:00-08:45", datetime(2026, 9, 30, h, m, tzinfo=ny), "America/New_York")
+    assert q(20) and q(2) and q(8, 44) and not q(8, 45) and not q(12)
+    assert not newsletter.in_quiet_hours("", datetime(2026, 9, 30, 2, tzinfo=ny), "America/New_York")

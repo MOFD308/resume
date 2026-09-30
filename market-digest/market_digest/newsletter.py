@@ -216,12 +216,35 @@ def send(cfg: Config, db: DB, llm: LLM, kind: str) -> None:
         db.set_kv(MACRO_SENT_KEY, utcnow())
 
 
-def send_if_levels_changed(cfg: Config, db: DB, llm: LLM) -> bool:
+LAST_ALERT_KEY = "levels:last_alert"
+
+
+def in_quiet_hours(spec: str | None, now: datetime, tz: str) -> bool:
+    """spec like "20:00-08:45" in timezone `tz`; the window may cross midnight."""
+    if not spec:
+        return False
+    start, end = (datetime.strptime(x.strip(), "%H:%M").time() for x in spec.split("-"))
+    t = now.astimezone(ZoneInfo(tz)).time()
+    return start <= t < end if start < end else (t >= start or t < end)
+
+
+def send_if_levels_changed(cfg: Config, db: DB, llm: LLM, now: datetime | None = None) -> bool:
     """Send a "levels" email when a level was added or moved since the last email with levels.
 
-    Levels that merely expired don't trigger an email on their own; they show up as removed in the
-    next one. Returns True if an email was sent.
+    - Levels that merely expired don't trigger an email; they show as removed in the next one.
+    - Nothing is sent during quiet hours; those changes appear in the next email instead.
+    - At most one alert per `min_interval_minutes`; changes in between are merged into the next.
+    Returns True if an email was sent.
     """
+    now = now or datetime.now(timezone.utc)
+    alerts = cfg.get("level_alerts") or {}
+    if in_quiet_hours(alerts.get("quiet_hours"), now,
+                      alerts.get("quiet_hours_timezone") or cfg.get("timezone", "America/New_York")):
+        return False
+    last = db.get_kv(LAST_ALERT_KEY)
+    gap = timedelta(minutes=alerts.get("min_interval_minutes", 30))
+    if last and now - datetime.fromisoformat(last) < gap:
+        return False
     active = aggregate.active_levels(db, cfg.get("level_ttl_days"))
     if not active:
         return False
@@ -231,6 +254,7 @@ def send_if_levels_changed(cfg: Config, db: DB, llm: LLM) -> bool:
         if not changes:
             return False
     send(cfg, db, llm, "levels")
+    db.set_kv(LAST_ALERT_KEY, now.isoformat())
     return True
 
 

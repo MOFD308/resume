@@ -23,7 +23,11 @@ cluster_tolerance_pct: 0.6      # 不同博主给的点位相差多少 % 以内�
 #   点位更新：点位有新增或调整就发（每 level_alert_minutes 分钟检查一次），全部点位 + 高亮变化
 #   盘前简报 / 盘后简报：宏观总结 + 全部点位（高亮变化）
 #   宏观周报：周日
-level_alert_minutes: 5
+level_alert_minutes: 5          # 多久检查一次点位有没有变化
+level_alerts:
+  min_interval_minutes: 30      # 两封「点位更新」至少间隔多久；期间的变化合并到下一封
+  quiet_hours: "20:00-08:45"    # 免打扰时段，不发「点位更新」，期间的变化进下一封邮件（通常是盘前简报）。不要就留空 ""
+  quiet_hours_timezone: America/New_York   # 免打扰按哪个时区算；在中国可改成 Asia/Shanghai
 schedule:                       # 美东时间。只写时间 = 周一到周五；可加星期，如 "sun 18:00"
   premarket: "08:45"            # 盘前简报
   close: "16:30"                # 盘后简报
