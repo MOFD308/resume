@@ -30,8 +30,9 @@ MACRO_KINDS = ("premarket", "close", "weekly")    # carry the macro digest
 MACRO_SENT_KEY = "newsletter:macro:last_sent"
 
 MACRO_INSTRUCTIONS = """In `overview`, first organise the macro views by theme (e.g. rates and the Fed, \
-inflation and jobs, geopolitics and war, fiscal/liquidity, earnings) with a short paragraph per theme, \
-naming which author holds which view, and give the overall risk picture. If level data is present, \
+inflation and jobs, geopolitics and war, fiscal/liquidity, earnings): one or two plain-language \
+sentences per theme, naming which author holds which view and what it means for the market, then \
+one sentence on the overall risk picture. Be concise; skip themes nobody discussed. If level data is present, \
 end with a short paragraph on what changed in the levels since the last email and which levels are \
 closest to the current price. `focus` lists upcoming events, key risks and key levels to watch; \
 `disagreements` lists where the authors disagree."""
@@ -140,10 +141,10 @@ def _level_part(cfg: Config, db: DB) -> dict:
     }
 
 
-def _macro_part(db: DB, kind: str) -> dict:
+def _macro_part(cfg: Config, db: DB, kind: str) -> dict:
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=7) if kind == "weekly" else _since(db, MACRO_SENT_KEY, timedelta(hours=24))
-    macro = aggregate.macro_items(db, since)
+    macro = aggregate.macro_items(db, since, cfg.get("macro_sources", ["youtube", "x"]))
     risks = [m["risk_level"] for m in macro if m["risk_level"]]
     return {
         "macro": macro,
@@ -175,7 +176,7 @@ def build(cfg: Config, db: DB, llm: LLM, kind: str) -> tuple[str, str, list | No
     """Render one email. Returns (subject, html, level snapshot to store once it is sent)."""
     now = datetime.now(timezone.utc)
     lv = _level_part(cfg, db) if kind in LEVEL_KINDS else None
-    mc = _macro_part(db, kind) if kind in MACRO_KINDS else None
+    mc = _macro_part(cfg, db, kind) if kind in MACRO_KINDS else None
     board = lv["board"] if lv else []
     macro = mc["macro"] if mc else []
 

@@ -179,7 +179,11 @@
       <td style="text-align:right;">{% if m.risk_level %}{{ pill('风险' ~ (m.risk_level|risk), C.res if m.risk_level in ('elevated', 'high') else C.ink2, C.resbg if m.risk_level in ('elevated', 'high') else C.bg) }}{% endif %}</td>
     </tr></table>
     {% if m.title %}<div style="margin-top:4px;font-size:14px;">{% if m.url %}<a href="{{ m.url }}" style="color:{{ C.sup }};">{{ m.title }}</a>{% else %}{{ m.title }}{% endif %}</div>{% endif %}
-    <div style="margin-top:8px;font-size:14px;line-height:1.7;color:{{ C.ink2 }};white-space:pre-line;">{{ m.macro_summary }}</div>
+    {% set parts = (m.macro_summary or '').split('白话解读：', 1) %}
+    <div style="margin-top:8px;font-size:14px;line-height:1.7;color:{{ C.ink2 }};white-space:pre-line;">{{ parts[0].strip() }}</div>
+    {% if parts|length > 1 %}
+    <div style="margin-top:8px;padding:8px 12px;background:#fffbf0;border-left:3px solid {{ C.gold }};border-radius:0 6px 6px 0;font-size:14px;line-height:1.7;color:{{ C.ink }};"><b>白话解读：</b>{{ parts[1].strip() }}</div>
+    {% endif %}
     {% set themes = m.macro_themes|fromjson %}
     {% if themes %}<div style="margin-top:8px;">{% for t in themes %}{{ pill(t.topic|topic, C.ink2, C.bg) }} {% endfor %}</div>{% endif %}
   </td></tr>

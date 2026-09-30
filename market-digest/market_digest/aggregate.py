@@ -124,10 +124,12 @@ def source_stats(db: DB, days: int = 7) -> list[dict]:
              "top_tickers": top.get((r["author"], r["kind"]), [])} for r in items]
 
 
-def macro_items(db: DB, since: datetime) -> list[dict]:
-    return db.query("SELECT id, kind, author, title, url, published_at, macro_summary, risk_level, "
+def macro_items(db: DB, since: datetime, kinds: list[str] | None = None) -> list[dict]:
+    """Macro views since `since`, optionally only from some source kinds (e.g. youtube, x)."""
+    rows = db.query("SELECT id, kind, author, title, url, published_at, macro_summary, risk_level, "
                     "macro_themes FROM items WHERE is_macro=1 AND status='done' AND published_at >= ? "
                     "ORDER BY published_at DESC", (since.isoformat(),))
+    return [r for r in rows if not kinds or r["kind"] in kinds]
 
 
 def snapshot(levels: list[dict]) -> list[dict]:

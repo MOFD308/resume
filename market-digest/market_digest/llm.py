@@ -31,12 +31,17 @@ invalidation, entry for suggested entries, pivot for a line in the sand that fli
 
 Macro: mark is_macro when the content discusses rates, the Fed, inflation, jobs, war/geopolitics, \
 fiscal policy, liquidity, credit or similar big-picture drivers of markets.
+Some authors write tersely or cryptically (allusions, sarcasm, half-sentences, in-group shorthand). \
+The reader wants each view decoded into plain language: say what the author most likely means and \
+why it matters, using the author's earlier posts (when given) and the market context. Keep it short. \
+Never present a guess as the author's words: mark interpretations you are unsure of as （推测）.
 
 All free-text fields (summary, note, macro_summary, view, market_impact) must be written in \
 Simplified Chinese. Tickers and numbers stay as-is."""
 
 BRIEF_SYSTEM = """You are writing a concise Chinese-language market newsletter for one private \
-investor. You are given structured data aggregated from several commentators the reader follows. \
+investor. Write plainly and briefly: short sentences, explain any jargon in a few words, and when an \
+author's view is cryptic, state what it most likely means (marked （推测） if unsure). You are given structured data aggregated from several commentators the reader follows. \
 Synthesise it: highlight where multiple sources agree (consensus levels), point out disagreements, \
 and relate levels to the current price when it is given. Do not add levels or facts that are not in \
 the data. Attribute views to their authors by name. This is a digest of other people's opinions, \
@@ -74,6 +79,9 @@ class LLM:
             f"Author focus: {item['category']}\nPublished (UTC): {item['published_at']}\n"
             f"Title: {item.get('title') or ''}\n\n<content>\n{content}\n</content>"
         )
+        if item.get("context"):
+            user += ("\n\n<earlier_posts_by_same_author note=\"context only; extract nothing from these\">\n"
+                     f"{item['context']}\n</earlier_posts_by_same_author>")
         images = json.loads(item.get("images") or "[]")
         if images:  # Discord screenshots: charts or level tables as pictures
             user = [*({"type": "image", "source": {"type": "url", "url": u}} for u in images),

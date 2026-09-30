@@ -30,8 +30,11 @@ class Extraction(BaseModel):
     levels: list[PriceLevel]
     is_macro: bool = Field(description="True if a meaningful part of the content is macro analysis")
     macro_summary: str | None = Field(
-        description="If is_macro: a structured Chinese summary of the macro analysis (key points as "
-                    "short bullet lines starting with '- '). Otherwise null.")
+        description="If is_macro: Chinese, in two parts. First at most 3 short bullet lines starting "
+                    "with '- ' giving the key points. Then a line starting with '白话解读：' that says in "
+                    "plain, simple Chinese what the author actually means and what it implies for the "
+                    "market (1-3 sentences, explain any jargon). If the original is cryptic, give the most "
+                    "likely meaning and mark it as '（推测）'. Otherwise null.")
     macro_themes: list[MacroTheme]
     risk_level: Literal["low", "moderate", "elevated", "high"] | None = Field(
         description="If is_macro: the author's overall assessment of market risk. Otherwise null.")

@@ -5,6 +5,7 @@ at a time.
 """
 import logging
 import tempfile
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from ..db import DB
@@ -59,8 +60,9 @@ def build_prompt(extra_tickers: list[str] | None = None) -> str:
 
 def recent_tickers(db: DB, limit: int = 25) -> list[str]:
     """Tickers the tracked authors talked about recently: the words most worth priming."""
-    rows = db.query("SELECT ticker, COUNT(*) n FROM levels WHERE published_at >= datetime('now', '-60 days') "
-                    "GROUP BY ticker ORDER BY n DESC LIMIT ?", (limit,))
+    since = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+    rows = db.query("SELECT ticker, COUNT(*) n FROM levels WHERE published_at >= ? "
+                    "GROUP BY ticker ORDER BY n DESC LIMIT ?", (since, limit))
     return [r["ticker"] for r in rows]
 
 

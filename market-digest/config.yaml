@@ -28,6 +28,7 @@ schedule:                       # 美东时间。只写时间 = 周一到周五�
   premarket: "08:45"            # 盘前简报
   close: "16:30"                # 盘后简报
   weekly_macro: "sun 18:00"     # 宏观周报（不想要就删掉这行）
+macro_sources: [youtube, x]    # 宏观总结只取这些来源（Discord 频道和网站主要是点位）
 macro_alert_immediately: false
 
 youtube_transcribe:             # 视频没有字幕时：下载音频，用 Whisper 在本机做语音识别（免费）

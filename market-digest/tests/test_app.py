@@ -160,3 +160,31 @@ def test_level_change_alert_only_when_levels_are_added_or_moved(db, cfg, monkeyp
 
     db.execute("DELETE FROM levels WHERE item_id='x:1'")                  # only a removal
     assert newsletter.send_if_levels_changed(cfg, db, llm) is False
+
+
+def test_terse_posts_are_read_with_the_authors_earlier_posts(db, cfg):
+    add(db, "x:a", "B", kind="x", hours_ago=30)
+    add(db, "x:b", "B", kind="x", hours_ago=60)   # older than two days: not included
+    db.execute("UPDATE items SET status='done', content=? WHERE id='x:a'", ("美债收益率要破 5% 了",))
+    db.execute("UPDATE items SET status='done', content=? WHERE id='x:b'", ("旧推文",))
+    add(db, "x:c", "B", kind="x", hours_ago=1)
+    seen = {}
+
+    class Spy(FakeLLM):
+        def extract(self, item):
+            seen[item["id"]] = item.get("context")
+            return super().extract(item)
+
+    pipeline.process_pending(cfg, db, Spy())
+    assert "美债收益率要破 5% 了" in seen["x:c"] and "旧推文" not in seen["x:c"]
+
+
+def test_macro_digest_uses_only_youtube_and_x_and_shows_plain_reading(db, cfg, monkeypatch):
+    monkeypatch.setattr(prices, "get_prices", lambda tickers: {})
+    add(db, "x:m", "B", kind="x", ext=extraction([], macro="- 收益率要涨\n白话解读：作者认为长债利率还会上行（推测）", risk="high"))
+    add(db, "discord:m", "D", kind="discord", ext=extraction([], macro="- 群聊观点", risk="low"))
+    llm = FakeLLM()
+    _, html, _ = newsletter.build(cfg, db, llm, "premarket")
+    assert [m["author"] for m in llm.last_brief_data["macro"]] == ["B"]
+    assert "群聊观点" not in html
+    assert "<b>白话解读：</b>作者认为长债利率还会上行（推测）" in html

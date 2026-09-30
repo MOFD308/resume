@@ -2,6 +2,7 @@
 import logging
 import os
 import threading
+from datetime import datetime, timedelta
 
 from . import newsletter
 from .config import Config
@@ -51,6 +52,17 @@ def transcribe_videos(cfg: Config, db: DB, llm: LLM) -> None:
         process_pending(cfg, db, llm)
 
 
+def _author_context(db: DB, item: dict, limit: int = 5) -> str | None:
+    """A post alone is often too terse to read; give Claude the same author's previous few posts."""
+    if item["kind"] not in ("x", "discord"):
+        return None
+    since = (datetime.fromisoformat(item["published_at"]) - timedelta(days=2)).isoformat()
+    rows = db.query("SELECT published_at, content FROM items WHERE author=? AND kind=? AND id != ? "
+                    "AND published_at <= ? AND published_at >= ? ORDER BY published_at DESC LIMIT ?",
+                    (item["author"], item["kind"], item["id"], item["published_at"], since, limit))
+    return "\n---\n".join(f"[{r['published_at']}] {(r['content'] or '')[:1000]}" for r in reversed(rows)) or None
+
+
 def process_pending(cfg: Config, db: DB, llm: LLM) -> int:
     """Extract levels/macro from pending items. Safe to call from several threads."""
     if not _process_lock.acquire(blocking=False):
@@ -60,7 +72,7 @@ def process_pending(cfg: Config, db: DB, llm: LLM) -> int:
         while items := db.pending_items():
             for item in items:
                 try:
-                    extraction = llm.extract(item)
+                    extraction = llm.extract({**item, "context": _author_context(db, item)})
                 except Exception as e:
                     log.exception("extraction failed for %s", item["id"])
                     db.mark_item(item["id"], "error", str(e)[:500])
